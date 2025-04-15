@@ -11,7 +11,7 @@ const union
 	.settings = { 
 		.ip_address = 0x017BA8C0, // 192.168.123.1
 		.network_mask = 0x00FFFFFF, // 255.255.255.0
-		.secondary_address = 0x006433c6, // 198.51.100.0 //TEST-NET-2. See the comment before 'secondary_address' definition for details.
+		.secondary_address = 0x0,//06433c6, // 198.51.100.0 //TEST-NET-2. See the comment before 'secondary_address' definition for details.
 		.network_name = WIFI_SSID,
 		.network_password = WIFI_PASSWORD,
 		.hostname = "AstroTimer",

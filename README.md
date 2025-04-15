@@ -8,7 +8,8 @@ This combo can handle the timer configuration functions through physical interfa
 
 ## TODO list
 * ~self hosted Access Point asn HTTP server~
-* simple webapp timer control
+* ~simple webapp timer control~
+* ~add timer interrupt~
 * add webapp Pico configuration
 * add webapp full sequance and Pico monitoring
 * add physical output interface

@@ -37,12 +37,16 @@ bool simplefs_init(struct SimpleFSContext *ctx, void *data)
     return true;
 }
 
+static void set_secondary_ip_address(int address)
+{
+    extern int ip4_secondary_ip_address;
+    ip4_secondary_ip_address = address;
+}
+
 static bool do_retrieve_file(http_connection conn, enum http_request_type type, char *path, void *context)
 {
-    for (int i = 0; i < s_SimpleFS.header->EntryCount; i++)
-    {
-        if (!strcmp(s_SimpleFS.names + s_SimpleFS.entries[i].NameOffset, path))
-        {
+    for (int i = 0; i < s_SimpleFS.header->EntryCount; i++) {
+        if (!strcmp(s_SimpleFS.names + s_SimpleFS.entries[i].NameOffset, path)) {
             http_server_send_reply(conn,
                 "200 OK",
                 s_SimpleFS.names + s_SimpleFS.entries[i].ContentTypeOffset,
@@ -55,34 +59,130 @@ static bool do_retrieve_file(http_connection conn, enum http_request_type type, 
     return false;
 }
 
-static void set_secondary_ip_address(int address)
+// TODO: make a structure to store timer settings
+static int s_NumberPicture = 3;
+static float s_ExposureTime = 2000;
+static float s_DelayTime = 1500;
+
+static char *parse_timer_settings(http_connection conn)
 {
-    /************************************ !!! WARNING !!! ************************************
-     * If you get an 'undefined reference to ip4_secondary_ip_address' error here,             *
-     * you need to patch your lwIP using the lwip_patch/lwip.patch file from this repository.*
-     * This ensures that this device can pretend to be a router redirecting requests to         *
-     * external IPs to its login page, so the OS can automatically navigate there.             *
-     *****************************************************************************************/
-    
-    extern int ip4_secondary_ip_address;
-    ip4_secondary_ip_address = address;
+    debug_printf("\tparse_timer_settings:\n");
+    for(;;) {
+        char *line = http_server_read_post_line(conn);
+        if (!line)
+            break;
+        debug_printf("\trecieve: %s\n", line);
+        char *p = strchr(line, '=');
+        if (!p)
+            continue;
+        *p++ = 0;
+        if (!strcasecmp(line, "picture")) {
+            int picture = p ? atoi(p) : 0;
+            if (picture) {
+                debug_printf("\t\tpicture: %d\n", picture);
+                s_NumberPicture = picture;
+            }
+            else {
+                return "Invalid number of picture!";
+            }
+        }
+        else if (!strcasecmp(line, "exposure")) {
+            float exposure = p ? atof(p) : 0;
+            if (exposure) {
+                debug_printf("\t\texposure: %f\n", exposure);
+                s_ExposureTime = exposure*1000;
+            }
+            else {
+                return "Invalid exposure!";
+            }
+        }
+        else if (!strcasecmp(line, "delay")) {
+            float delay = p ? atof(p) : 0;
+            if (delay) {
+                debug_printf("\t\tdelay: %f\n", delay);
+                s_DelayTime = delay*1000;
+            }
+            else {
+                return "Invalid delay!";
+            }
+        }
+    }
+    return NULL;
+}
+
+SemaphoreHandle_t s_StartTimerSemaphore = NULL;
+SemaphoreHandle_t s_StopTimerSemaphore = NULL;
+TaskHandle_t s_TimerTaskHandle = NULL;
+
+static void timer_task(void *arg)
+{
+    TickType_t xLasteWakeTime = xTaskGetTickCount();
+    for (int i=0;i<s_NumberPicture;i++) {
+        debug_printf("\t- loop %d/%d - %d\n", i, s_NumberPicture, xTaskGetTickCount());
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(s_ExposureTime));
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(s_DelayTime));
+    }
+    debug_printf("\tEnd of task!\n");
+    s_TimerTaskHandle = NULL;
+    vTaskDelete(NULL);
+}
+
+static bool do_handle_timer_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
+{
+    if (!strcmp(path, "start")) {
+        if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
+            char *err = parse_timer_settings(conn);
+            if (err) {
+                debug_printf("\tError: %s\n", err);
+                http_server_send_reply(conn, "200 OK", "text/plain", err, -1);
+                return true;
+            }
+            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, NULL, TEST_TASK_PRIORITY, &s_TimerTaskHandle);
+            xSemaphoreGive(s_StartTimerSemaphore);
+            http_server_send_reply(conn, "200 OK", "text/plain", "OK", -1);
+            return true;
+        } else {
+            debug_printf("Timer task is already running\n");
+            xSemaphoreGive(s_StartTimerSemaphore);
+            http_server_send_reply(conn, "200 OK", "text/plain", "Timer is already running", -1);
+            return false;
+        }
+    }
+    else if (!strcmp(path, "stop")) {
+        if (xSemaphoreTake(s_StopTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle != NULL) {
+            vTaskDelete(s_TimerTaskHandle);
+            s_TimerTaskHandle = NULL;
+            xSemaphoreGive(s_StopTimerSemaphore);
+            http_server_send_reply(conn, "200 OK", "text/plain", "OK", -1);
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+            return true;
+        } else {
+            debug_printf("No Timer task is running\n");
+            http_server_send_reply(conn, "200 OK", "text/plain", "No Timer is running", -1);
+            return false;
+        }
+    }
+    return false;
 }
 
 static void main_task(__unused void *params)
 {
     
-    if (cyw43_arch_init())
-    {
+    if (cyw43_arch_init()) {
         printf("failed to initialise\n");
         return;
     }
     
     extern void *_binary_www_fs_start;
-    if (!simplefs_init(&s_SimpleFS, &_binary_www_fs_start))
-    {
+    if (!simplefs_init(&s_SimpleFS, &_binary_www_fs_start)) {
         printf("missing/corrupt FS image");
         return;
     }
+    
+    xSemaphoreGive(s_StartTimerSemaphore);
+    xSemaphoreGive(s_StopTimerSemaphore);
     
     const pico_server_settings *settings = get_pico_server_settings();
 
@@ -99,8 +199,9 @@ static void main_task(__unused void *params)
     dns_server_init(netif->ip_addr.addr, settings->secondary_address, settings->hostname, settings->domain_name, settings->dns_ignores_network_suffix);
     set_secondary_ip_address(settings->secondary_address);
     http_server_instance server = http_server_create(settings->hostname, settings->domain_name, 4, 4096);
-    static http_zone zone1, zone2, zone3;
+    static http_zone zone1, zone2;
     http_server_add_zone(server, &zone1, "", do_retrieve_file, NULL);
+    http_server_add_zone(server, &zone2, "/api/timer", do_handle_timer_api_call, NULL);
     vTaskDelete(NULL);
 }
 
@@ -126,8 +227,18 @@ void debug_write(const void *data, int size)
 int main(void)
 {
     stdio_init_all();
+    
     TaskHandle_t task;
+    
+    // Semaphore declaration
+    s_StartTimerSemaphore = xSemaphoreCreateBinary();
+    s_StopTimerSemaphore = xSemaphoreCreateBinary();
     s_PrintfSemaphore = xSemaphoreCreateMutex();
+    
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, TEST_TASK_PRIORITY, &task);
     vTaskStartScheduler();
+    
+    // Ne jamais atteindre ici
+    for (;;)
+    return 0;
 }
