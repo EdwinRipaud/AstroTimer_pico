@@ -1,4 +1,4 @@
-#include <stdarg.h>
+//#include <stdarg.h>
 #include <pico/cyw43_arch.h>
 #include <pico/stdlib.h>
 #include <hardware/watchdog.h>
@@ -51,6 +51,7 @@ static bool do_retrieve_file(http_connection conn, enum http_request_type type, 
                 "200 OK",
                 s_SimpleFS.names + s_SimpleFS.entries[i].ContentTypeOffset,
                 s_SimpleFS.data + s_SimpleFS.entries[i].DataOffset,
+                "close",
                 s_SimpleFS.entries[i].FileSize);
             return true;
         }
@@ -59,12 +60,18 @@ static bool do_retrieve_file(http_connection conn, enum http_request_type type, 
     return false;
 }
 
-// TODO: make a structure to store timer settings
-static int s_NumberPicture = 3;
-static float s_ExposureTime = 2000;
-static float s_DelayTime = 1500;
+typedef struct {
+    int numberPicture;
+    float exposureTime;
+    float delayTime;
+} TimerData_t;
+TimerData_t timerData = {3, 2000, 1000};
 
-static char *parse_timer_settings(http_connection conn)
+SemaphoreHandle_t s_StartTimerSemaphore = NULL;
+SemaphoreHandle_t s_StopTimerSemaphore = NULL;
+TaskHandle_t s_TimerTaskHandle = NULL;
+
+static char *parse_timer_settings(http_connection conn, TimerData_t *timerData)
 {
     debug_printf("\tparse_timer_settings:\n");
     for(;;) {
@@ -80,7 +87,7 @@ static char *parse_timer_settings(http_connection conn)
             int picture = p ? atoi(p) : 0;
             if (picture) {
                 debug_printf("\t\tpicture: %d\n", picture);
-                s_NumberPicture = picture;
+                timerData->numberPicture = picture;
             }
             else {
                 return "Invalid number of picture!";
@@ -90,7 +97,7 @@ static char *parse_timer_settings(http_connection conn)
             float exposure = p ? atof(p) : 0;
             if (exposure) {
                 debug_printf("\t\texposure: %f\n", exposure);
-                s_ExposureTime = exposure*1000;
+                timerData->exposureTime = exposure*1000;
             }
             else {
                 return "Invalid exposure!";
@@ -100,7 +107,7 @@ static char *parse_timer_settings(http_connection conn)
             float delay = p ? atof(p) : 0;
             if (delay) {
                 debug_printf("\t\tdelay: %f\n", delay);
-                s_DelayTime = delay*1000;
+                timerData->delayTime = delay*1000;
             }
             else {
                 return "Invalid delay!";
@@ -110,19 +117,16 @@ static char *parse_timer_settings(http_connection conn)
     return NULL;
 }
 
-SemaphoreHandle_t s_StartTimerSemaphore = NULL;
-SemaphoreHandle_t s_StopTimerSemaphore = NULL;
-TaskHandle_t s_TimerTaskHandle = NULL;
-
 static void timer_task(void *arg)
 {
+    TimerData_t *param = arg;
     TickType_t xLasteWakeTime = xTaskGetTickCount();
-    for (int i=0;i<s_NumberPicture;i++) {
-        debug_printf("\t- loop %d/%d - %d\n", i, s_NumberPicture, xTaskGetTickCount());
+    for (int i=0;i<param->numberPicture;i++) {
+        debug_printf("\t- loop %d/%d - %d\n", i, param->numberPicture, xTaskGetTickCount());
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
-        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(s_ExposureTime));
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(param->exposureTime));
         cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
-        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(s_DelayTime));
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(param->delayTime));
     }
     debug_printf("\tEnd of task!\n");
     s_TimerTaskHandle = NULL;
@@ -133,20 +137,20 @@ static bool do_handle_timer_api_call(http_connection conn, enum http_request_typ
 {
     if (!strcmp(path, "start")) {
         if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
-            char *err = parse_timer_settings(conn);
+            char *err = parse_timer_settings(conn, &timerData);
             if (err) {
                 debug_printf("\tError: %s\n", err);
-                http_server_send_reply(conn, "200 OK", "text/plain", err, -1);
+                http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
                 return true;
             }
-            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, NULL, TEST_TASK_PRIORITY, &s_TimerTaskHandle);
+            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, &timerData, TEST_TASK_PRIORITY, &s_TimerTaskHandle);
             xSemaphoreGive(s_StartTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "OK", -1);
+            http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
             return true;
         } else {
             debug_printf("Timer task is already running\n");
             xSemaphoreGive(s_StartTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "Timer is already running", -1);
+            http_server_send_reply(conn, "200 OK", "text/plain", "Timer is already running", "close", -1);
             return false;
         }
     }
@@ -155,12 +159,12 @@ static bool do_handle_timer_api_call(http_connection conn, enum http_request_typ
             vTaskDelete(s_TimerTaskHandle);
             s_TimerTaskHandle = NULL;
             xSemaphoreGive(s_StopTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "OK", -1);
-            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
+            http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); // replace by physical PIN
             return true;
         } else {
             debug_printf("No Timer task is running\n");
-            http_server_send_reply(conn, "200 OK", "text/plain", "No Timer is running", -1);
+            http_server_send_reply(conn, "200 OK", "text/plain", "No Timer is running", "close", -1);
             return false;
         }
     }
@@ -224,6 +228,11 @@ void debug_write(const void *data, int size)
     xSemaphoreGive(s_PrintfSemaphore);
 }
 
+void key_pressed_func() {
+    char key = getchar_timeout_us(0); // get any pending key press but don't wait
+    debug_printf("-> %c\n", key);
+}
+
 int main(void)
 {
     stdio_init_all();
@@ -234,6 +243,9 @@ int main(void)
     s_StartTimerSemaphore = xSemaphoreCreateBinary();
     s_StopTimerSemaphore = xSemaphoreCreateBinary();
     s_PrintfSemaphore = xSemaphoreCreateMutex();
+    
+    // Get notified if the user presses a key
+    stdio_set_chars_available_callback(key_pressed_func, NULL);
     
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, TEST_TASK_PRIORITY, &task);
     vTaskStartScheduler();

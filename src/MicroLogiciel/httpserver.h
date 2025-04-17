@@ -21,7 +21,7 @@ typedef struct http_zone
 
 http_server_instance http_server_create(const char *main_host, const char *main_domain, int max_thread_count, int buffer_size);
 void http_server_add_zone(http_server_instance server, http_zone *instance, const char *prefix, http_request_handler handler, void *context);
-void http_server_send_reply(http_connection conn, const char *code, const char *contentType, const char *content, int size);
+void http_server_send_reply(http_connection conn, const char *code, const char *contentType, const char *content, const char *connexion, int size);
 
 /* Reads a single line from the POST request using the internal connection buffer. Returns NULL when the entire request has been read. */
 char *http_server_read_post_line(http_connection conn);

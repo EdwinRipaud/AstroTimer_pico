@@ -1,4 +1,4 @@
-#include <stdarg.h>
+//#include <stdarg.h>
 #include <pico/cyw43_arch.h>
 #include <pico/stdlib.h>
 
@@ -287,7 +287,7 @@ static void parse_and_handle_http_request(http_connection ctx)
 			}
 		}
 		
-		http_server_send_reply(ctx, "404 Not Found", "text/plain", "File not found", -1);
+		http_server_send_reply(ctx, "404 Not Found", "text/plain", "File not found", "close", -1);
 	}
 }
 
@@ -393,12 +393,12 @@ void http_server_add_zone(http_server_instance server, http_zone *zone, const ch
 	server->first_zone = zone;
 }
 
-void http_server_send_reply(http_connection conn, const char *code, const char *contentType, const char *content, int size)
+void http_server_send_reply(http_connection conn, const char *code, const char *contentType, const char *content, const char *connexion, int size)
 {
 	if (size < 0)
 		size = strlen(content);
 	
-	int done = snprintf(conn->buffer, conn->server->buffer_size, "HTTP/1.0 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n", code, contentType, size);
+	int done = snprintf(conn->buffer, conn->server->buffer_size, "HTTP/1.0 %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: %s\r\n\r\n", code, contentType, size, connexion);
 	send_all(conn->socket, conn->buffer, done);
 	send_all(conn->socket, content, size);
 }
