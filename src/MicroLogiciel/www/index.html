@@ -9,29 +9,72 @@
     </style>
     
     <script>
-        function call_timer_api(path) {
-            let xhr = new XMLHttpRequest();
-            xhr.open("POST", '/api/timer/'+path, true);
-            xhr.setRequestHeader("Content-Type", "text/plain");
+        function timer_api_send() {
             let text = '';
             text += `picture=${document.getElementById('picture').value}\r\n`;
             text += `exposure=${document.getElementById('exposure').value}\r\n`;
             text += `delay=${document.getElementById('delay').value}\r\n`;
+            
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", '/api/timer/start', true);
+            xhr.setRequestHeader("Content-Type", "text/plain");
             xhr.send(text);
             xhr.onloadend = function() {
                 if (this.responseText == "OK") {
-                    /*if (path=="start") {
-                        document.getElementById("btn_startTimer").style.display = "none";
-                        document.getElementById("btn_stopTimer").style.display = "block";
-                    } else if (path=="stop") {
-                        document.getElementById("btn_startTimer").style.display = "block";
-                        document.getElementById("btn_stopTimer").style.display = "none";
-                    }
-                    style="display:none"*/
+                    console.log(this.responseText);
                 }
                 else
-                    alert(this.responseText);
+                console.log(this.responseText);
             };
+        }
+        function timer_api_send_JSON() {
+            const data = {
+                picture : parseInt(document.getElementById('picture').value),
+                exposure: parseFloat(document.getElementById('exposure').value),
+                delay   : parseFloat(document.getElementById('delay').value)
+            };
+            
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", '/api/timer/start', true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.send(JSON.stringify(data));
+            xhr.onloadend = function() {
+                if (this.responseText == "OK") {
+                    console.log(this.responseText);
+                }
+                else
+                console.log(this.responseText);
+            };
+        }
+        function timer_api_stop() {
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", '/api/timer/stop', true);
+            xhr.setRequestHeader("Content-Type", "text/plain");
+            xhr.send();
+            xhr.onloadend = function() {
+                if (this.responseText == "OK") {
+                    console.log(this.responseText);
+                }
+                else
+                console.log(this.responseText);
+            };
+        }
+        function timer_api_update() {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "/api/timer/update", true);
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState === 4 && xhr.status === 200) {
+                    try {
+                        var data = JSON.parse(xhr.responseText);
+                        document.getElementById("picture").value = data.picture;
+                        document.getElementById("exposure").value = data.exposure;
+                        document.getElementById("delay").value = data.delay;
+                    } catch (e) {
+                        console.error("Error JSON:", e);
+                    }
+                }
+            };
+            xhr.send();
         }
     </script>
     
@@ -43,9 +86,11 @@
                 <span>Number of picture:</span><input id="picture" value="3"/><br/>
                 <span>Exposure time:</span><input id="exposure" value="2"/><span>s</span><br/>
                 <span>Delay time:</span><input id="delay" value="0.5"/><span>s</span><br/>
-                <button id = "btn_startTimer" onclick="call_timer_api('start')">Start</button>
-                <button id = "btn_stopTimer" onclick="call_timer_api('stop')">Stop</button>
+                <button id = "btn_startTimer" onclick="timer_api_send()">Start</button>
+                <button id = "btn_startTimer" onclick="timer_api_send_JSON()">JSON</button>
+                <button id = "btn_stopTimer" onclick="timer_api_stop()">Stop</button>
             </div>
+            <button onclick="timer_api_update()">Rafraîchir maintenant</button>
         </div>
     </body>
 </html>

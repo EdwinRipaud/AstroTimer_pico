@@ -448,7 +448,7 @@ void http_server_end_write_reply(http_write_handle handle, const char *footer)
 	conn->buffered_size = 0;
 }
 
-char *http_server_read_post_line(http_connection conn)
+char *http_server_read_post_line(http_connection conn) // FIXME: doesn't work with JSON request
 {
 	if (conn->post.remaining_input_len <= 0 && conn->post.buffer_pos >= conn->post.buffer_used)
 		return NULL;
