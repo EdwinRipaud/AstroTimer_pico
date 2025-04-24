@@ -37,7 +37,7 @@
             let xhr = new XMLHttpRequest();
             xhr.open("POST", '/api/timer/start', true);
             xhr.setRequestHeader("Content-Type", "application/json");
-            xhr.send(JSON.stringify(data));
+            xhr.send(JSON.stringify(data)+'\r\n');
             xhr.onloadend = function() {
                 if (this.responseText == "OK") {
                     console.log(this.responseText);

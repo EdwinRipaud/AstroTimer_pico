@@ -167,7 +167,7 @@ static bool do_handle_timer_api_call(http_connection conn, enum http_request_typ
     if (!strcmp(path, "start")) {
         debug_printf("start\n");
         if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
-            char *err = parse_timer_settings(conn, &timerData);
+            char *err = parse_timer_settings(conn, &timerData); // TODO: Add JSON request parsing
             if (err) {
                 debug_printf("\tError: %s\n", err);
                 xSemaphoreGive(s_StartTimerSemaphore);
