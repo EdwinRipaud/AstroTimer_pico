@@ -18,6 +18,7 @@
 #include "debug_printf.h"
 
 #define TEST_TASK_PRIORITY (tskIDLE_PRIORITY + 2UL)
+#define SHUTTER_PIN CYW43_WL_GPIO_LED_PIN // FIXME: replace by physical PIN
 
 struct SimpleFSContext
 {
@@ -144,13 +145,18 @@ static void timer_task(void *arg)
     float delayTime = param->delayTime;
     debug_printf("param: {\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}\n", nbPicture, expTime/1000, delayTime/1000);
     TickType_t xLasteWakeTime = xTaskGetTickCount();
-    for (int i=0;i<nbPicture;i++) { // TODO: loop one time less to avoid last delayTime whitch is useless
+    for (int i=0;i<nbPicture-1;i++) {
         debug_printf("\t- loop %d/%d - %d\n", i, nbPicture, xTaskGetTickCount());
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1); // FIXME: replace by physical PIN
+        cyw43_arch_gpio_put(SHUTTER_PIN, 1);
         vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(expTime));
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); // FIXME: replace by physical PIN
+        cyw43_arch_gpio_put(SHUTTER_PIN, 0);
         vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(delayTime));
     }
+    // Last exposure outside the loop to skip the 'delayTime'
+    cyw43_arch_gpio_put(SHUTTER_PIN, 1);
+    vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(expTime));
+    cyw43_arch_gpio_put(SHUTTER_PIN, 0);
+    
     debug_printf("\tEnd of task!\n");
     s_TimerTaskHandle = NULL;
     vTaskDelete(NULL);
@@ -186,7 +192,7 @@ static bool do_handle_timer_api_call(http_connection conn, enum http_request_typ
             s_TimerTaskHandle = NULL;
             xSemaphoreGive(s_StopTimerSemaphore);
             http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0); // TODO: replace by physical PIN
+            cyw43_arch_gpio_put(SHUTTER_PIN, 0);
             return true;
         } else {
             debug_printf("No Timer task is running\n");
