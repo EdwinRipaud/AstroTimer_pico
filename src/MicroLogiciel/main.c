@@ -1,4 +1,3 @@
-//#include <stdarg.h>
 #include <pico/cyw43_arch.h>
 #include <pico/stdlib.h>
 #include <hardware/watchdog.h>
@@ -31,8 +30,9 @@ struct SimpleFSContext
 bool simplefs_init(struct SimpleFSContext *ctx, void *data)
 {
     ctx->header = (GlobalFSHeader *)data;
-    if (ctx->header->Magic != kSimpleFSHeaderMagic)
+    if (ctx->header->Magic != kSimpleFSHeaderMagic) {
         return false;
+    }
     ctx->entries = (StoredFileEntry *)(ctx->header + 1);
     ctx->names = (char *)(ctx->entries + ctx->header->EntryCount);
     ctx->data = (char *)(ctx->names + ctx->header->NameBlockSize);

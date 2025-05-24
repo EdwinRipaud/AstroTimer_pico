@@ -1,5 +1,5 @@
 #include "json_parser.h"
-#include <pico/stdlib.h>
+
 #include <string.h>
 #include <ctype.h>
 
@@ -13,7 +13,7 @@ char *JSON_status_message(JsonStatus status) {
             return "JSON missing key";
         case JSON_INVALID_TYPE:
             return "JSON invalid type";
-            
+        
         default:
             return NULL;
     }
@@ -32,16 +32,24 @@ int extract_value(const char* json, const char* key, char* out_value, size_t out
     if (*found == '"') {
         found++;
         char* end = strchr(found, '"');
-        if (!end) return 0;
+        if (!end) {
+            return 0;
+        }
         size_t len = end - found;
-        if (len >= out_size) return 0;
+        if (len >= out_size) {
+            return 0;
+        }
         strncpy(out_value, found, len);
         out_value[len] = '\0';
     } else {
         char* end = strpbrk(found, ",}");
-        if (!end) return 0;
+        if (!end) {
+            return 0;
+        }
         size_t len = end - found;
-        if (len >= out_size) return 0;
+        if (len >= out_size) {
+            return 0;
+        }
         strncpy(out_value, found, len);
         out_value[len] = '\0';
     }
@@ -51,9 +59,13 @@ int extract_value(const char* json, const char* key, char* out_value, size_t out
 
 int is_strict_integer(const char* s) {
     if (*s == '-') s++; // Skip leading minus sign if present
-    if (!*s) return 0; // Reject if string is just "-" or empty
+    if (!*s) {
+        return 0; // Reject if string is just "-" or empty
+    }
     for (; *s; s++) {
-        if (!isdigit(*s)) return 0; // Must be all digits
+        if (!isdigit(*s)) {
+            return 0; // Must be all digits
+        }
     }
     return 1;
 }
@@ -66,7 +78,9 @@ int is_strict_float(const char* s) {
     
     for (; *s; s++) {
         if (*s == '.') {
-            if (has_dot) return 0; // Only one dot allowed
+            if (has_dot) {
+                return 0; // Only one dot allowed
+            }
             has_dot = 1;
         } else if (isdigit(*s)) {
             has_digit = 1; // At least one digit required

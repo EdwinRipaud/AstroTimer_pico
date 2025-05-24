@@ -16,12 +16,12 @@ SemaphoreHandle_t s_UpdateTimerSemaphore = NULL;
 
 static TaskHandle_t s_TimerTaskHandle = NULL;
 
-static JsonStatus parse_timer_JSON(http_connection conn, TimerData_t* out)
+static JsonStatus parse_timer(http_connection conn, TimerData_t* out)
 {
     char buffer[128];
     int count = 0;
     
-    debug_printf("\tparse_timer_JSON:\n");
+    debug_printf("\tparse_timer:\n");
     for(;;) {
         char *line = http_server_read_post_line(conn);
         if (!line)
@@ -29,20 +29,32 @@ static JsonStatus parse_timer_JSON(http_connection conn, TimerData_t* out)
         count++;
         debug_printf("\trecieve JSON: %s\n", line);
         // picture (int)
-        if (!extract_value(line, "\"picture\"", buffer, sizeof(buffer))) return JSON_MISSING_KEY;
-        if (!is_strict_integer(buffer)) return JSON_INVALID_TYPE;
+        if (!extract_value(line, "\"picture\"", buffer, sizeof(buffer))) {
+            return JSON_MISSING_KEY;
+        }
+        if (!is_strict_integer(buffer)) {
+            return JSON_INVALID_TYPE;
+        }
         debug_printf("\tpicture:%d\n", atoi(buffer));
         out->numberPicture = atoi(buffer);
         
         // exposure (int)
-        if (!extract_value(line, "\"exposure\"", buffer, sizeof(buffer))) return JSON_MISSING_KEY;
-        if (!is_strict_float(buffer)) return JSON_INVALID_TYPE;
+        if (!extract_value(line, "\"exposure\"", buffer, sizeof(buffer))) {
+            return JSON_MISSING_KEY;
+        }
+        if (!is_strict_float(buffer)) {
+            return JSON_INVALID_TYPE;
+        }
         debug_printf("\texposure:%f\n", atof(buffer));
         out->exposureTime = atof(buffer)*1000;
         
         // delay (float)
-        if (!extract_value(line, "\"delay\"", buffer, sizeof(buffer))) return JSON_MISSING_KEY;
-        if (!is_strict_float(buffer)) return JSON_INVALID_TYPE;
+        if (!extract_value(line, "\"delay\"", buffer, sizeof(buffer))) {
+            return JSON_MISSING_KEY;
+        }
+        if (!is_strict_float(buffer)) {
+            return JSON_INVALID_TYPE;
+        }
         debug_printf("\tdelay:%f\n", atof(buffer));
         out->delayTime = atof(buffer)*1000;
     }
@@ -51,58 +63,6 @@ static JsonStatus parse_timer_JSON(http_connection conn, TimerData_t* out)
         return JSON_KO;
     }
     return JSON_OK;
-}
-
-static char *parse_timer_settings(http_connection conn, TimerData_t *timerData)
-{
-    debug_printf("\tparse_timer_settings:\n");
-    int count = 0;
-    for(;;) {
-        char *line = http_server_read_post_line(conn);
-        if (!line)
-            break;
-        count++;
-        debug_printf("\trecieve: %s\n", line);
-        char *p = strchr(line, '=');
-        if (!p)
-            continue;
-        *p++ = 0;
-        if (!strcasecmp(line, "picture")) {
-            int picture = p ? atoi(p) : 0;
-            if (picture) {
-                //debug_printf("\t\tpicture: %d\n", picture);
-                timerData->numberPicture = picture;
-            }
-            else {
-                return "Invalid number of picture!";
-            }
-        }
-        else if (!strcasecmp(line, "exposure")) {
-            float exposure = p ? atof(p) : 0;
-            if (exposure) {
-                //debug_printf("\t\texposure: %f\n", exposure);
-                timerData->exposureTime = exposure*1000;
-            }
-            else {
-                return "Invalid exposure!";
-            }
-        }
-        else if (!strcasecmp(line, "delay")) {
-            float delay = p ? atof(p) : 0;
-            if (delay) {
-                //debug_printf("\t\tdelay: %f\n", delay);
-                timerData->delayTime = delay*1000;
-            }
-            else {
-                return "Invalid delay!";
-            }
-        }
-    }
-    if (count<=0)
-        return "unable to read data!";
-    
-    debug_printf("parse_timerData: {\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}\n", timerData->numberPicture, timerData->exposureTime/1000, timerData->delayTime/1000);
-    return NULL;
 }
 
 static char *format_timer_settings(char *buffer, TimerData_t *timerData)
@@ -149,28 +109,7 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
     if (!strcmp(path, "start")) {
         debug_printf("start\n");
         if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
-            char *err = parse_timer_settings(conn, &timerData);
-            if (err) {
-                debug_printf("\tError: %s\n", err);
-                xSemaphoreGive(s_StartTimerSemaphore);
-                http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
-                return true;
-            }
-            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, &timerData, TIMER_TASK_PRIORITY, &s_TimerTaskHandle);
-            xSemaphoreGive(s_StartTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-            return true;
-        } else {
-            debug_printf("Timer task is already running\n");
-            xSemaphoreGive(s_StartTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "NOT OK", "close", -1);
-            return false;
-        }
-    }
-    else if (!strcmp(path, "startJSON")) {
-        debug_printf("startJSON\n");
-        if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
-            JsonStatus status = parse_timer_JSON(conn, &timerData);
+            JsonStatus status = parse_timer(conn, &timerData);
             debug_printf("\tstatus: %s\n", JSON_status_message(status));
             if (status != JSON_OK) {
                 char *err = JSON_status_message(status);

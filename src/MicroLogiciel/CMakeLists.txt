@@ -61,6 +61,8 @@ add_executable(${PROGRAM_NAME}
     dnsserver/dnsserver.c
     httpserver.c
     server_settings.c
+    json_parser.c
+    timer.c
     )
 
 # create File System

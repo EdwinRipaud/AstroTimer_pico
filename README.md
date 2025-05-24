@@ -11,7 +11,7 @@ This combo can handle the timer configuration functions through physical interfa
 * ~simple webapp timer control~
 * ~add timer interrupt~
 * add webapp Pico configuration
-* add webapp full sequance and Pico monitoring
+* add webapp full sequence and Pico monitoring
 * add physical output interface
 * add physical input interface
 

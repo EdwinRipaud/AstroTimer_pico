@@ -1,8 +1,10 @@
 #ifndef JSON_PARSER_H
 #define JSON_PARSER_H
+
 #include <pico/stdlib.h>
 
-typedef enum {
+typedef enum
+{
     JSON_OK,
     JSON_KO,
     JSON_MISSING_KEY,

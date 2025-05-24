@@ -10,24 +10,6 @@
     
     <script>
         function timer_api_send() {
-            let text = '';
-            text += `picture=${document.getElementById('picture').value}\r\n`;
-            text += `exposure=${document.getElementById('exposure').value}\r\n`;
-            text += `delay=${document.getElementById('delay').value}\r\n`;
-            
-            let xhr = new XMLHttpRequest();
-            xhr.open("POST", '/api/timer/start', true);
-            xhr.setRequestHeader("Content-Type", "text/plain");
-            xhr.send(text);
-            xhr.onloadend = function() {
-                if (this.responseText == "OK") {
-                    console.log(this.responseText);
-                }
-                else
-                console.log(this.responseText);
-            };
-        }
-        function timer_api_send_JSON() {
             const data = {
                 picture : parseInt(document.getElementById('picture').value),
                 exposure: parseFloat(document.getElementById('exposure').value),
@@ -35,7 +17,7 @@
             };
             
             let xhr = new XMLHttpRequest();
-            xhr.open("POST", '/api/timer/startJSON', true);
+            xhr.open("POST", '/api/timer/start', true);
             xhr.setRequestHeader("Content-Type", "application/json");
             xhr.send(JSON.stringify(data)+'\r\n');
             xhr.onloadend = function() {
@@ -87,7 +69,6 @@
                 <span>Exposure time:</span><input id="exposure" value="2"/><span>s</span><br/>
                 <span>Delay time:</span><input id="delay" value="0.5"/><span>s</span><br/>
                 <button id = "btn_startTimer" onclick="timer_api_send()">Start</button>
-                <button id = "btn_startTimer" onclick="timer_api_send_JSON()">JSON</button>
                 <button id = "btn_stopTimer" onclick="timer_api_stop()">Stop</button>
             </div>
             <button onclick="timer_api_update()">Rafraîchir maintenant</button>

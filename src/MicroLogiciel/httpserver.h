@@ -1,21 +1,24 @@
+#ifndef HTTPSERVER_H
+#define HTTPSERVER_H
+
 typedef struct _http_server_instance *http_server_instance;
 typedef struct _http_connection *http_connection, *http_write_handle;
 
 enum http_request_type
 {
-	HTTP_GET  = 0,
-	HTTP_POST = 1,
+    HTTP_GET  = 0,
+    HTTP_POST = 1,
 };
 
 typedef bool(*http_request_handler)(http_connection conn, enum http_request_type type, char *path, void *context);
 
 typedef struct http_zone
 {
-	const char *prefix;
-	http_request_handler handler;
-	void *context;
-	struct http_zone *next;
-	int prefix_len;
+    const char *prefix;
+    http_request_handler handler;
+    void *context;
+    struct http_zone *next;
+    int prefix_len;
 } http_zone;
 
 
@@ -30,3 +33,5 @@ char *http_server_read_post_line(http_connection conn);
 http_write_handle http_server_begin_write_reply(http_connection conn, const char *code, const char *contentType);
 void http_server_write_reply(http_write_handle handle, const char *format, ...);
 void http_server_end_write_reply(http_write_handle handle, const char *footer);
+
+#endif

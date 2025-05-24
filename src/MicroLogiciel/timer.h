@@ -19,8 +19,7 @@ typedef struct
     float delayTime;
 } TimerData_t;
 
-static JsonStatus parse_timer_JSON(http_connection conn, TimerData_t* out);
-static char *parse_timer_settings(http_connection conn, TimerData_t *timerData);
+static JsonStatus parse_timer(http_connection conn, TimerData_t* out);
 
 static char *format_timer_settings(char *buffer, TimerData_t *timerData);
 
