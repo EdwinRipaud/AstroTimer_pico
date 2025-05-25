@@ -73,6 +73,25 @@ static const char *get_encoded_domain_name_component(const uint8_t *buffer, size
 	return NULL;
 }
 
+const char *get_next_domain_name_component(const char *domain_name, int *position, int *length)
+{
+    if (!domain_name || !position || !length)
+        return NULL;
+    
+    int pos = *position;
+    const char *p = strchr(domain_name + pos, '.');
+    if (p) {
+        *position = p + 1 - domain_name;
+        *length = p - domain_name - pos;
+        return domain_name + pos;
+    } else if (domain_name[pos]) {
+        *length = strlen(domain_name + pos);
+        *position = pos + *length;
+        return domain_name + pos;
+    } else
+        return NULL;
+}
+
 static uint32_t get_address_for_encoded_domain(const uint8_t *buffer, size_t offset, size_t buffer_size)
 {
 	debug_printf("DNS server: ");

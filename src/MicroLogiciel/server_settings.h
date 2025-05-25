@@ -1,7 +1,9 @@
 #ifndef SERVER_SETTINGS_H
 #define SERVER_SETTINGS_H
 
-#include <sys/types.h>
+#include <pico/stdlib.h>
+
+#include "httpserver.h"
 
 typedef struct
 {
@@ -24,11 +26,14 @@ typedef struct
     uint32_t dns_ignores_network_suffix;
 } pico_server_settings;
 
+static char *parse_server_settings(http_connection conn, pico_server_settings *settings);
+
+static char *format_server_settings(char *buffer, const pico_server_settings *settings);
+
 const pico_server_settings *get_pico_server_settings();
 
 void write_pico_server_settings(const pico_server_settings *new_settings);
 
-// TODO: move to 'dnsserver.h'
-const char *get_next_domain_name_component(const char *domain_name, int *position, int *length);
+bool do_handle_settings_api_call(http_connection conn, enum http_request_type type, char *path, void *context);
 
 #endif
