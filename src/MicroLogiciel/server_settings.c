@@ -2,7 +2,12 @@
 
 #include <string.h>
 #include <portmacro.h>
-#include "hardware/flash.h"
+
+#include <pico/cyw43_arch.h>
+#include <hardware/flash.h>
+
+#include "debug_printf.h"
+
 
 const union 
 {
@@ -21,7 +26,6 @@ const union
     }
 };
 
-
 const pico_server_settings *get_pico_server_settings()
 {
     return &s_Settings.settings;
@@ -35,7 +39,7 @@ void write_pico_server_settings(const pico_server_settings *new_settings)
     portEXIT_CRITICAL();
 }
 
-
+// TODO: move to 'dnsserver.c'
 const char *get_next_domain_name_component(const char *domain_name, int *position, int *length)
 {
     if (!domain_name || !position || !length)

@@ -25,8 +25,10 @@ typedef struct
 } pico_server_settings;
 
 const pico_server_settings *get_pico_server_settings();
+
 void write_pico_server_settings(const pico_server_settings *new_settings);
 
+// TODO: move to 'dnsserver.h'
 const char *get_next_domain_name_component(const char *domain_name, int *position, int *length);
 
 #endif

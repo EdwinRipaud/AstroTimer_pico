@@ -8,6 +8,7 @@
 
 static char buffer_timerData[100];
 
+// TODO: define timer settings as a const union (cf. 's_Settings' -> 'server_settings.c') to enable default timer settings modification
 TimerData_t timerData = {3, 2000, 1000};
 
 SemaphoreHandle_t s_StartTimerSemaphore = NULL;
