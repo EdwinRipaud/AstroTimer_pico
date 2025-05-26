@@ -10,6 +10,7 @@
     
     <script>
         // ----- Server settings API functions -----
+        // TODO: make an advance setting popup
         function show_settings_popup(show) {
             update_field_visibility();
             document.getElementById("popup_root").style.display = show ? "block" : "none";
@@ -33,7 +34,6 @@
                         else
                             el.value = data[k];
                     }
-                    
                     show_settings_popup(true);
                 }
                 catch(err) {
@@ -41,14 +41,16 @@
                 }
           };
         }
+        // TODO: split settings into 2 groups: lambda and advance settings
+        // ???: send lambda and/or advace settings depending on the visibility of the advance section
         function apply_settings() {
             let xhr = new XMLHttpRequest();
             xhr.open("POST", '/api/settings', true);
             xhr.setRequestHeader("Content-Type", "text/plain");
             let text = "";
-            for (const el of document.getElementsByClassName("settings_checkbox"))
+            for (const el of document.getElementsByClassName("server_settings_checkbox"))
                 text += `${el.id}=${el.checked}\r\n`;
-            for (const el of document.getElementsByClassName("settings_field"))
+            for (const el of document.getElementsByClassName("server_settings_field"))
                 text += `${el.id}=${el.value}\r\n`;
             xhr.send(text);
             xhr.onloadend = function () {
@@ -60,6 +62,43 @@
                 }
                 else
                     alert(this.responseText);
+            };
+        }
+        // ----- Timer settings API functions -----
+        function edit_settings() {
+            let xhr = new XMLHttpRequest();
+            xhr.open("GET", '/api/timer/settings', true);
+            xhr.send();
+            xhr.onloadend = function () {
+                try {
+                    let data = JSON.parse(this.responseText);
+                    for (const el of document.getElementsByClassName("timer_setting_field")) {
+                        el.value = data[el.id];
+                    }
+                    show_settings_popup(true);
+                }
+                catch(err) {
+                    show_unrecoverable_error(err.message);
+                }
+          };
+        }
+        // TODO: group with server settings
+        function apply_timer_settings() {
+            const data = {
+                picture : parseInt(document.getElementById('picture').getElementsByClassName("timer_setting_field").value),
+                exposure: parseFloat(document.getElementById('exposure').getElementsByClassName("timer_setting_field").value),
+                delay   : parseFloat(document.getElementById('delay').getElementsByClassName("timer_setting_field").value)
+            };
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", '/api/timer/settings', true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.send(JSON.stringify(data)+'\r\n');
+            xhr.onloadend = function() {
+                if (this.responseText == "OK") {
+                    console.log(this.responseText);
+                }
+                else
+                console.log(this.responseText);
             };
         }
         // ----- Timer API functions -----
@@ -130,7 +169,7 @@
         }
     </script>
     
-    <body onload="init_page()">
+    <body>
         <div class="main">
             <div class="header">
                 <h1>Welcome to AstroTimer Webapp</h1>
@@ -150,24 +189,36 @@
             <div class="modal_background" id="popup_root">
                 <div id="settings_popup" class="settings_popup modal_popup">
                     <h2>AstroTimer HTTP server settings</h2>
-                    <table>
-                        <tr><td>Wi-Fi Network name (SSID):</td><td><input id="ssid" class="settings_field"></td></tr>
-                        <tr><td colspan="2"><input id="has_password" type="checkbox" onchange="update_field_visibility()" class="settings_checkbox">Require Wi-Fi password for connecting</td></tr>
-                        <tr class="dynamic_row" data-condition="has_password"><td>Wi-Fi Password:</td><td><input id="password" class="settings_field"></td></tr>
-                        <tr><td>Host name:</td><td><input id="hostname" class="settings_field"></td></tr>
-                        <tr><td colspan="2"><input id="use_domain" type="checkbox" onchange="update_field_visibility()" class="settings_checkbox">Use a connection DNS suffix</td></tr>
-                        <tr class="dynamic_row" data-condition="use_domain"><td>DNS suffix:</td><td><input id="domain" class="settings_field"></td></tr>
-                        <tr><td colspan="2"><input id="dns_ignores_network_suffix" type="checkbox" class="settings_checkbox">Ignore domain if host name matches</td></tr>
-
-                        <tr><td>IP address:</td><td><input id="ipaddr" class="settings_field"></td></tr>
-                        <tr><td>Network mask:</td><td><input id="netmask" class="settings_field"></td></tr>
-                
-                        <tr><td colspan="2"><input id="use_second_ip" type="checkbox" onchange="update_field_visibility()" class="settings_checkbox">Show 'sign into the network' message</td></tr>
-                        <tr class="dynamic_row" data-condition="use_second_ip"><td>Secondary IP address:</td><td><input id="ipaddr2" class="settings_field"></td></tr>
-                    </table>
+                    <div id="timer_settings" class="timer_settings">
+                        <table>
+                            <caption>Timer settings</cation>
+                            <tr><td>Number of picture:</td><td><input id="picture" class="timer_setting_field"/></td></tr>
+                            <tr><td>Exposure time:</td><td><input id="exposure" class="timer_setting_field"/></td></tr>
+                            <tr><td>Delay time:</td><td><input id="delay" class="timer_setting_field"/></td></tr>
+                        </table>
+                        <button onclick="apply_timer_settings()">Apply</button>
+                    </div>
+                    <div id="server_settings" class="server_settings">
+                        <table>
+                            <caption>Server settings</caption>
+                            <tr><td>Wi-Fi Network name (SSID):</td><td><input id="ssid" class="server_settings_field"></td></tr>
+                            <tr><td colspan="2"><input id="has_password" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Require Wi-Fi password for connecting</td></tr>
+                            <tr class="dynamic_row" data-condition="has_password"><td>Wi-Fi Password:</td><td><input id="password" class="server_settings_field"></td></tr><tr><td>IP address:</td><td><input id="ipaddr" class="server_settings_field"></td></tr>
+                            
+                            <tr><td>Advance server settings</td></tr>
+                            <tr><td>Network mask:</td><td><input id="netmask" class="server_settings_field"></td></tr>
+                            <tr><td>Host name:</td><td><input id="hostname" class="server_settings_field"></td></tr>
+                            <tr><td colspan="2"><input id="use_domain" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Use a connection DNS suffix</td></tr>
+                            <tr class="dynamic_row" data-condition="use_domain"><td>DNS suffix:</td><td><input id="domain" class="server_settings_field"></td></tr>
+                            <tr><td colspan="2"><input id="dns_ignores_network_suffix" type="checkbox" class="server_settings_checkbox">Ignore domain if host name matches</td></tr>
+                            
+                            <tr><td colspan="2"><input id="use_second_ip" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Show 'sign into the network' message</td></tr>
+                            <tr class="dynamic_row" data-condition="use_second_ip"><td>Secondary IP address:</td><td><input id="ipaddr2" class="server_settings_field"></td></tr>
+                        </table>
+                    </div>
                     <div>
-                        <button onclick="apply_settings()">OK</button>
-                        <button onclick="show_settings_popup(false)">Cancel</button>
+                        <button onclick="apply_settings()">Apply</button>
+                        <button onclick="show_settings_popup(false)">Hide</button>
                     </div>
                 </div>
             </div>

@@ -126,19 +126,20 @@ void debug_write(const void *data, int size)
     xSemaphoreGive(s_PrintfSemaphore);
 }
 
-void increase_timer_settings(TimerData_t *timerData)
+void increase_timer_settings(timer_settings *timer_data)
 {
     debug_printf("\tincrease_timer_settings\n");
-    timerData->numberPicture = (timerData->numberPicture % 5) + 1;
-    timerData->exposureTime = timerData->exposureTime + 500;
-    timerData->delayTime = timerData->delayTime + 250;
+    timer_data->picture_number = (timer_data->picture_number % 5) + 1;
+    timer_data->exposure_time = timer_data->exposure_time + 500;
+    timer_data->delay_time = timer_data->delay_time + 250;
 }
 
 void key_pressed_func() {
     char key = getchar_timeout_us(0); // get any pending key press but don't wait
     debug_printf("-> %c\n", key);
-    extern TimerData_t timerData;
-    increase_timer_settings(&timerData); // MARK: only for test purposes
+    static timer_settings timer_data;
+    timer_data = *get_timer_settings();
+    increase_timer_settings(&timer_data); // MARK: only for test purposes
 }
 
 int main(void)

@@ -10,12 +10,12 @@
 
 #include "debug_printf.h"
 
-static char buffer_serverSettings[405]; // set to the maximal size of the server settings string
+static char buffer_server_settings[405]; // set to the maximal size of the server settings string
 
 const union 
 {
     pico_server_settings settings;
-    char padding[FLASH_SECTOR_SIZE];
+    char padding[FLASH_SECTOR_SIZE-sizeof(pico_server_settings)]; // padding to get FLASH_SECTOR_SIZE size
 } __attribute__((aligned(FLASH_SECTOR_SIZE))) s_Settings = {
     .settings = {
         .ip_address = 0x017BA8C0, // 192.168.123.1
@@ -178,8 +178,8 @@ bool do_handle_settings_api_call(http_connection conn, enum http_request_type ty
         return true;
     } else {
         const pico_server_settings *settings = get_pico_server_settings();
-        format_server_settings(buffer_serverSettings, settings);
-        http_server_send_reply(conn, "200 OK", "text/json", buffer_serverSettings, "close", -1);
+        format_server_settings(buffer_server_settings, settings);
+        http_server_send_reply(conn, "200 OK", "text/json", buffer_server_settings, "close", -1);
         
         return true;
     }
