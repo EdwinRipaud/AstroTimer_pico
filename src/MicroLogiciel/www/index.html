@@ -17,8 +17,9 @@
             document.getElementById("settings_popup").style.display = show ? "block" : "none";
         }
         function update_field_visibility() {
-            for (const el of document.getElementsByClassName("dynamic_row"))
+            for (const el of document.getElementsByClassName("dynamic_row")) {
                 el.style.display = document.getElementById(el.dataset.condition).checked ? "table-row" : "none";
+            }
         }
         function edit_settings() {
             let xhr = new XMLHttpRequest();
@@ -29,10 +30,11 @@
                     let data = JSON.parse(this.responseText);
                     for (const k of Object.keys(data)) {
                         const el = document.getElementById(k);
-                        if (el.getAttribute('type') == 'checkbox')
+                        if (el.getAttribute('type') == 'checkbox') {
                             el.checked = data[k];
-                        else
+                        } else {
                             el.value = data[k];
+                        }
                     }
                     show_settings_popup(true);
                 }
@@ -40,6 +42,7 @@
                     show_unrecoverable_error(err.message);
                 }
           };
+            edit_timer_settings();
         }
         // TODO: split settings into 2 groups: lambda and advance settings
         // ???: send lambda and/or advace settings depending on the visibility of the advance section
@@ -48,24 +51,25 @@
             xhr.open("POST", '/api/settings', true);
             xhr.setRequestHeader("Content-Type", "text/plain");
             let text = "";
-            for (const el of document.getElementsByClassName("server_settings_checkbox"))
+            for (const el of document.getElementsByClassName("server_settings_checkbox")) {
                 text += `${el.id}=${el.checked}\r\n`;
-            for (const el of document.getElementsByClassName("server_settings_field"))
+            }
+            for (const el of document.getElementsByClassName("server_settings_field")) {
                 text += `${el.id}=${el.value}\r\n`;
+            }
             xhr.send(text);
             xhr.onloadend = function () {
-                if (this.responseText == "OK")
-                {
+                if (this.responseText == "OK") {
                     show_settings_popup(false);
                     document.getElementById("reboot_popup").style.display = "block";
                     unrecoverable_error = "rebooting";
-                }
-                else
+                } else {
                     alert(this.responseText);
+                }
             };
         }
         // ----- Timer settings API functions -----
-        function edit_settings() {
+        function edit_timer_settings() {
             let xhr = new XMLHttpRequest();
             xhr.open("GET", '/api/timer/settings', true);
             xhr.send();
@@ -84,11 +88,10 @@
         }
         // TODO: group with server settings
         function apply_timer_settings() {
-            const data = {
-                picture : parseInt(document.getElementById('picture').getElementsByClassName("timer_setting_field").value),
-                exposure: parseFloat(document.getElementById('exposure').getElementsByClassName("timer_setting_field").value),
-                delay   : parseFloat(document.getElementById('delay').getElementsByClassName("timer_setting_field").value)
-            };
+            var data={};
+            for (const el of document.getElementsByClassName("timer_setting_field")) {
+                data[el.id]=el.value;
+            }
             let xhr = new XMLHttpRequest();
             xhr.open("POST", '/api/timer/settings', true);
             xhr.setRequestHeader("Content-Type", "application/json");
@@ -96,9 +99,9 @@
             xhr.onloadend = function() {
                 if (this.responseText == "OK") {
                     console.log(this.responseText);
+                } else {
+                    console.log(this.responseText);
                 }
-                else
-                console.log(this.responseText);
             };
         }
         // ----- Timer API functions -----
@@ -116,9 +119,9 @@
             xhr.onloadend = function() {
                 if (this.responseText == "OK") {
                     console.log(this.responseText);
+                } else {
+                    console.log(this.responseText);
                 }
-                else
-                console.log(this.responseText);
             };
         }
         function timer_api_stop() {
@@ -129,9 +132,9 @@
             xhr.onloadend = function() {
                 if (this.responseText == "OK") {
                     console.log(this.responseText);
+                } else {
+                    console.log(this.responseText);
                 }
-                else
-                console.log(this.responseText);
             };
         }
         const inputFocus = ["picture", "exposure", "delay"];
