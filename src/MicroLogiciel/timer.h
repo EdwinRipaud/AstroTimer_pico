@@ -6,7 +6,6 @@
 #include <task.h>
 
 #include "json_parser.h"
-
 #include "httpserver.h"
 
 #define SHUTTER_PIN CYW43_WL_GPIO_LED_PIN // FIXME: replace by physical PIN

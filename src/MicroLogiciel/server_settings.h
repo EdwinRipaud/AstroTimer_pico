@@ -3,6 +3,7 @@
 
 #include <pico/stdlib.h>
 
+#include "json_parser.h"
 #include "httpserver.h"
 
 typedef struct
@@ -26,7 +27,7 @@ typedef struct
     uint32_t dns_ignores_network_suffix;
 } pico_server_settings;
 
-static char *parse_server_settings(http_connection conn, pico_server_settings *settings);
+static JsonStatus parse_server_settings(http_connection conn, pico_server_settings *settings);
 
 static char *format_server_settings(char *buffer, const pico_server_settings *settings);
 

@@ -83,7 +83,10 @@ static JsonStatus parse_timer(http_connection conn, timer_settings *out)
 static char *format_timer_settings(char *buffer, timer_settings *timer_data)
 {
     debug_printf("\tformat_timer_settings:");
-    int n = sprintf(buffer, "{\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}", timer_data->picture_number, (float)timer_data->exposure_time/1000, (float)timer_data->delay_time/1000);
+    int n = sprintf(buffer, "{\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}",
+                    timer_data->picture_number,
+                    (float)timer_data->exposure_time/1000,
+                    (float)timer_data->delay_time/1000);
     if (!n){
         debug_printf("\tUnable to format data :'(\n");
         return "Unable to format data";

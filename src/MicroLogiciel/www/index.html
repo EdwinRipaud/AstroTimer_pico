@@ -47,17 +47,17 @@
         // TODO: split settings into 2 groups: lambda and advance settings
         // ???: send lambda and/or advace settings depending on the visibility of the advance section
         function apply_settings() {
-            let xhr = new XMLHttpRequest();
-            xhr.open("POST", '/api/settings', true);
-            xhr.setRequestHeader("Content-Type", "text/plain");
-            let text = "";
+            var data={};
             for (const el of document.getElementsByClassName("server_settings_checkbox")) {
-                text += `${el.id}=${el.checked}\r\n`;
+                data[el.id]=el.checked;
             }
             for (const el of document.getElementsByClassName("server_settings_field")) {
-                text += `${el.id}=${el.value}\r\n`;
+                data[el.id]=el.value;
             }
-            xhr.send(text);
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", '/api/settings', true);
+            xhr.setRequestHeader("Content-Type", "application/json");
+            xhr.send(JSON.stringify(data)+'\r\n');
             xhr.onloadend = function () {
                 if (this.responseText == "OK") {
                     show_settings_popup(false);
@@ -98,7 +98,9 @@
             xhr.send(JSON.stringify(data)+'\r\n');
             xhr.onloadend = function() {
                 if (this.responseText == "OK") {
-                    console.log(this.responseText);
+                    show_settings_popup(false);
+                    document.getElementById("reboot_popup").style.display = "block";
+                    unrecoverable_error = "rebooting";
                 } else {
                     console.log(this.responseText);
                 }
@@ -206,7 +208,8 @@
                             <caption>Server settings</caption>
                             <tr><td>Wi-Fi Network name (SSID):</td><td><input id="ssid" class="server_settings_field"></td></tr>
                             <tr><td colspan="2"><input id="has_password" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Require Wi-Fi password for connecting</td></tr>
-                            <tr class="dynamic_row" data-condition="has_password"><td>Wi-Fi Password:</td><td><input id="password" class="server_settings_field"></td></tr><tr><td>IP address:</td><td><input id="ipaddr" class="server_settings_field"></td></tr>
+                            <tr class="dynamic_row" data-condition="has_password"><td>Wi-Fi Password:</td><td><input id="password" class="server_settings_field"></td></tr>
+                            <tr><td>IP address:</td><td><input id="ipaddr" class="server_settings_field"></td></tr>
                             
                             <tr><td>Advance server settings</td></tr>
                             <tr><td>Network mask:</td><td><input id="netmask" class="server_settings_field"></td></tr>
