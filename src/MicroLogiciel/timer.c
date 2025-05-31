@@ -43,35 +43,25 @@ static JsonStatus parse_timer(http_connection conn, timer_settings *out)
             break;
         count++;
         debug_printf("\trecieve JSON: %s\n", line);
-        // picture (int)
-        if (!extract_value(line, "\"picture\"", buffer, sizeof(buffer))) {
-            return JSON_MISSING_KEY;
-        }
-        if (!is_strict_integer(buffer)) {
-            return JSON_INVALID_TYPE;
-        }
-        debug_printf("\tpicture:%d\n", atoi(buffer));
-        out->picture_number = atoi(buffer);
+        JsonStatus status;
         
-        // exposure (int)
-        if (!extract_value(line, "\"exposure\"", buffer, sizeof(buffer))) {
-            return JSON_MISSING_KEY;
+        // picture (int)
+        status = getInteger(line, "picture", &out->picture_number);
+        if (status != JSON_OK) {
+            return status;
         }
-        if (!is_strict_float(buffer)) {
-            return JSON_INVALID_TYPE;
+        
+        // exposure (float)
+        status = getFloatInt(line, "exposure", &out->exposure_time);
+        if (status != JSON_OK) {
+            return status;
         }
-        debug_printf("\texposure:%f\n", atof(buffer));
-        out->exposure_time = atof(buffer)*1000;
         
         // delay (float)
-        if (!extract_value(line, "\"delay\"", buffer, sizeof(buffer))) {
-            return JSON_MISSING_KEY;
+        status = getFloatInt(line, "delay", &out->delay_time);
+        if (status != JSON_OK) {
+            return status;
         }
-        if (!is_strict_float(buffer)) {
-            return JSON_INVALID_TYPE;
-        }
-        debug_printf("\tdelay:%f\n", atof(buffer));
-        out->delay_time = atof(buffer)*1000;
     }
     if (count<=0) {
         debug_printf("\tNo data received\n");
@@ -210,11 +200,11 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
                     return true;
                 } else {
                     debug_printf("/!\\--- write_timer_settings() ---/!\\... ");
-                    write_timer_settings(&timer_data);
+                    //write_timer_settings(&timer_data);
                     debug_printf("Done\n");
                     xSemaphoreGive(s_UpdateTimerSemaphore);
                     http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-                    watchdog_reboot(0, SRAM_END, 500);
+                    //watchdog_reboot(0, SRAM_END, 500);
                 }
                 return false;
             } else {

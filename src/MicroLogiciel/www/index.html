@@ -147,7 +147,7 @@
                 xhr.open("GET", "/api/timer/update", true);
                 xhr.onreadystatechange = function() {
                     if (xhr.readyState === 4 && xhr.status === 200) {
-                        try {
+                        try { //  TODO: set updated parameters as in 'edit_timer_settings()'
                             var data = JSON.parse(xhr.responseText);
                             document.getElementById("picture").value = data.picture;
                             document.getElementById("exposure").value = data.exposure;

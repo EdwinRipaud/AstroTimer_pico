@@ -30,14 +30,12 @@ const union
     }
 };
 
-// TODO: create high level JSON function like: char *getString(char *key), bool getBool(char *key), char *getIP(char *key)
 static JsonStatus parse_server_settings(http_connection conn, pico_server_settings *settings)
 {
     char buffer[32];
     char dest[32];
     int count = 0;
     bool has_password = false, use_domain = false, use_second_ip = false;
-    bool bad_ssid = false, bad_password = false, bad_hostname = false, bad_domain = false;
     
     debug_printf("\tparse_timer:\n");
     for(;;) {
@@ -46,164 +44,79 @@ static JsonStatus parse_server_settings(http_connection conn, pico_server_settin
             break;
         count++;
         debug_printf("\trecieve JSON: %s\n", line);
+        JsonStatus status;
+        
         // SSID (char*)
-        if (!extract_value(line, "\"ssid\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'ssid'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_strict_string(buffer)) {
-            debug_printf("Not a string: ssid -> %s\n", buffer);
-            return JSON_INVALID_STRING;
-        } else if (!copy_strip_quote(buffer, settings->network_name, sizeof(settings->network_name))) {
-            bad_ssid = true;
+        status = getString(line, "ssid", settings->network_name, sizeof(settings->network_name));
+        if (status != JSON_OK) {
+            return status;
         }
         
         // has_password (bool)
-        if (!extract_value(line, "\"has_password\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'has_password'\n");
-            return JSON_MISSING_KEY;
-        } else {
-            if (!is_strict_boolean(buffer)) {
-                debug_printf("Not a boolean: has_password\n");
-                return JSON_INVALID_BOOL;
-            } else {
-                has_password = !strcasecmp(buffer, "true") || buffer[0] == '1';
-            }
+        status = getBoolean(line, "has_password", &has_password);
+        if (status != JSON_OK) {
+            return status;
         }
         
         // password (char*)
-        if (!extract_value(line, "\"password\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'password'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_strict_string(buffer)) {
-            debug_printf("Not a string: password -> %s\n", buffer);
-            return JSON_INVALID_STRING;
-        } else if (!copy_strip_quote(buffer, settings->network_password, sizeof(settings->network_password))) {
-            bad_password = true;
+        status = getString(line, "password", settings->network_password, sizeof(settings->network_password));
+        if (status != JSON_OK) {
+            return status;
         }
         
         // hostname (char*)
-        if (!extract_value(line, "\"hostname\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'hostname'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_strict_string(buffer)) {
-            debug_printf("Not a string: hostname -> %s\n", buffer);
-            return JSON_INVALID_STRING;
-        } else if (!copy_strip_quote(buffer, settings->hostname, sizeof(settings->hostname))) {
-            bad_hostname = true;
+        status = getString(line, "hostname", settings->hostname, sizeof(settings->hostname));
+        if (status != JSON_OK) {
+            return status;
         }
         
         // use_domain (bool)
-        if (!extract_value(line, "\"use_domain\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'use_domain'\n");
-            return JSON_MISSING_KEY;
-        } else {
-            if (!is_strict_boolean(buffer)) {
-                debug_printf("Not a boolean: use_domain\n");
-                return JSON_INVALID_BOOL;
-            } else {
-                use_domain = !strcasecmp(buffer, "true") || buffer[0] == '1';
-            }
+        status = getBoolean(line, "use_domain", &use_domain);
+        if (status != JSON_OK) {
+            return status;
         }
         
         // domain (char*)
-        if (!extract_value(line, "\"domain\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'domain'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_strict_string(buffer)) {
-            debug_printf("Not a string: domain -> %s\n", buffer);
-            return JSON_INVALID_STRING;
-        } else if (!copy_strip_quote(buffer, settings->domain_name, sizeof(settings->domain_name))) {
-            bad_domain = true;
+        // ???: WTF is going on here?! JSON key change after passing it to 'getString()' for no reason! Anyway, it doesn't matter, because the key is used before its value is modified.
+        status = getString(line, "domain", settings->domain_name, sizeof(settings->domain_name));
+        if (status != JSON_OK) {
+            return status;
         }
         
-        // ipaddr (char*)
-        if (!extract_value(line, "\"ipaddr\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'ipaddr'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_valid_ip(buffer)) {
-            debug_printf("Not an IP address: ipaddr -> %s\n", buffer);
-            return JSON_INVALID_IP;
-        }
-        copy_strip_quote(buffer, dest, sizeof(dest));
-        settings->ip_address = ipaddr_addr(dest);
-        if (!settings->ip_address || settings->ip_address == -1) {
-            debug_printf("Invalide IP: ipaddr -> %s\n", dest);
-            return JSON_INVALID_TYPE;
+        // ipaddr (IP address)
+        status = getIPAddress(line, "ipaddr", &settings->ip_address);
+        if (status != JSON_OK) {
+            return status;
         }
         
-        // netmask (char*)
-        if (!extract_value(line, "\"netmask\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'netmask'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_valid_ip(buffer)) {
-            debug_printf("Not an IP address: netmask -> %s\n", buffer);
-            return JSON_INVALID_IP;
-        }
-        copy_strip_quote(buffer, dest, sizeof(dest));
-        settings->network_mask = ipaddr_addr(dest);
-        if (!settings->network_mask || settings->network_mask == -1) {
-            debug_printf("Invalide IP: netmask -> %s\n", dest);
-            return JSON_INVALID_TYPE;
+        // netmask (IP address)
+        status = getIPAddress(line, "netmask", &settings->network_mask);
+        if (status != JSON_OK) {
+            return status;
         }
         
         // use_second_ip (bool)
-        if (!extract_value(line, "\"use_second_ip\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'use_second_ip'\n");
-            return JSON_MISSING_KEY;
-        } else {
-            if (!is_strict_boolean(buffer)) {
-                debug_printf("Not a boolean: use_second_ip\n");
-                return JSON_INVALID_BOOL;
-            } else {
-                use_second_ip = !strcasecmp(buffer, "true") || buffer[0] == '1';
-            }
+        status = getBoolean(line, "use_second_ip", &use_second_ip);
+        if (status != JSON_OK) {
+            return status;
         }
         
-        // ipaddr2 (char*)
-        if (!extract_value(line, "\"ipaddr2\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'ipaddr2'\n");
-            return JSON_MISSING_KEY;
-        } else if (!is_valid_ip(buffer)) {
-            debug_printf("Not an IP address: ipaddr2 -> %s\n", buffer);
-            return JSON_INVALID_IP;
+        // ipaddr2 (IP address)
+        status = getIPAddress(line, "ipaddr2", &settings->secondary_address);
+        if (status != JSON_OK) {
+            return status;
         }
-        copy_strip_quote(buffer, dest, sizeof(dest));
-        settings->secondary_address = ipaddr_addr(dest);
         
         // dns_ignores_network_suffix (bool)
-        if (!extract_value(line, "\"dns_ignores_network_suffix\"", buffer, sizeof(buffer))) {
-            debug_printf("Missing key: 'dns_ignores_network_suffix'\n");
-            return JSON_MISSING_KEY;
-        } else {
-            if (!is_strict_boolean(buffer)) {
-                debug_printf("Not a boolean: dns_ignores_network_suffix\n");
-                return JSON_INVALID_BOOL;
-            } else {
-                settings->dns_ignores_network_suffix = !strcasecmp(buffer, "true") || buffer [0] == '1';
-            }
+        status = getBoolean(line, "dns_ignores_network_suffix", &settings->dns_ignores_network_suffix);
+        if (status != JSON_OK) {
+            return status;
         }
     }
     if (count<=0) {
         debug_printf("\tNo data received\n");
         return JSON_KO;
     } else {
-        if (bad_ssid) {
-            debug_printf("Bad SSID\n");
-            return JSON_KO;
-        }
-        if (bad_password) {
-            debug_printf("Bad password\n");
-            return JSON_KO;
-        }
-        if (bad_hostname) {
-            debug_printf("Bad hostname\n");
-            return JSON_KO;
-        }
-        if (bad_domain) {
-            debug_printf("Bad domain\n");
-            return JSON_KO;
-        }
-        
         if (!has_password){
             memset(settings->network_password, 0, sizeof(settings->network_password));
             debug_printf("Set settings->network_password to '0'\n");
@@ -278,10 +191,10 @@ bool do_handle_settings_api_call(http_connection conn, enum http_request_type ty
         }
         
         debug_printf("/!\\--- write_pico_server_settings() ---/!\\... ");
-        //write_pico_server_settings(&settings);
+        write_pico_server_settings(&settings);
         debug_printf("Done\n");
         http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-        //watchdog_reboot(0, SRAM_END, 500);
+        watchdog_reboot(0, SRAM_END, 500);
          
         return true;
     } else {

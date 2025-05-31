@@ -5,6 +5,8 @@
 
 #include <pico/cyw43_arch.h>
 
+#include "debug_printf.h"
+
 char *JSON_status_message(JsonStatus status) {
     switch (status) {
         case JSON_OK:
@@ -15,15 +17,15 @@ char *JSON_status_message(JsonStatus status) {
             return "JSON missing key";
         case JSON_INVALID_TYPE:
             return "JSON invalid type";
-        case JSON_INVALID_INT:
+        case JSON_INVALID_INTEGER:
             return "JSON invalid (int)";
         case JSON_INVALID_FLOAT:
             return "JSON invalid (float)";
-        case JSON_INVALID_BOOL:
+        case JSON_INVALID_BOOLEAN:
             return "JSON invalid (bool)";
         case JSON_INVALID_STRING:
             return "JSON invalid (str)";
-        case JSON_INVALID_IP:
+        case JSON_INVALID_IP_ADDRESS:
             return "JSON invalid ip address";
         
         default:
@@ -32,55 +34,26 @@ char *JSON_status_message(JsonStatus status) {
 }
 
 int extract_value(const char* json, const char* key, char* out_value, size_t out_size) {
-    char* found = strstr(json, key);
+    char* found = strstr(json, key); // Find the first occurence of the key
     if (!found) {
         return 0;
     }
-    
-    found = strchr(found, ':');
+    found = strchr(found, ':'); // Find the first value delimiter from the found key
     if (!found) {
         return 0;
     }
     found++;
-    
-    while (isspace(*found)) found++;
-    
-    char* end = strpbrk(found, ",}");
+    while (isspace(*found)) found++; // Skip whitespace
+    char* end = strpbrk(found, ",}"); // Find the first occurence of one of the delimiter ',' our '}'
     if (!end) {
         return 0;
     }
-    size_t len = end - found;
+    size_t len = end - found; // Get the length of the value
     if (len >= out_size) {
         return 0;
     }
-    strncpy(out_value, found, len);
-    out_value[len] = '\0';
-    /*
-    if (*found == '"') {
-        found++;
-        char* end = strchr(found, '"');
-        if (!end) {
-            return 0;
-        }
-        size_t len = end - found;
-        if (len >= out_size) {
-            return 0;
-        }
-        strncpy(out_value, found, len);
-        out_value[len] = '\0';
-    } else {
-        char* end = strpbrk(found, ",}");
-        if (!end) {
-            return 0;
-        }
-        size_t len = end - found;
-        if (len >= out_size) {
-            return 0;
-        }
-        strncpy(out_value, found, len);
-        out_value[len] = '\0';
-    }*/
-    
+    strncpy(out_value, found, len); // Copy the value tou the output
+    out_value[len] = '\0'; // Ensure it's a string
     return 1;
 }
 
@@ -120,8 +93,7 @@ int is_strict_float(const char* s) {
 }
 
 int is_strict_boolean(const char* s) {
-    //return (strlen(s) == 1 && (s[0] == '0' || s[0] == '1'));
-    return strcmp(s, "true") == 0 || strcmp(s, "false") == 0;
+    return strcmp(s, "true") == 0 || strcmp(s, "false") == 0 || (strlen(s) == 1 && (s[0] == '0' || s[0] == '1'));
 }
 
 int is_strict_string(const char* s) {
@@ -135,55 +107,12 @@ int is_strict_string(const char* s) {
     return 1;
 }
 
-int is_valid_ip(const char* ip) {
-    if (!ip) {
+int is_valid_ip_address(const char* ip) {
+    [[maybe_unused]] ip4_addr_t _;
+    if (!ip4addr_aton(ip, &_)) {
         return 0;
     }
-    
-    size_t len = strlen(ip);
-    if (len < 3 || ip[0] != '"' || ip[len - 1] != '"') {
-        return 0;
-    }
-    
-    // Copy content inside the quotes
-    char addr[32];
-    size_t addr_len = len - 2;
-    if (addr_len >= sizeof(addr)) {
-        return 0;
-    }
-    strncpy(addr, ip + 1, addr_len);
-    addr[addr_len] = '\0';
-    
-    // Tokenize and validate format "X.X.X.X"
-    int parts = 0;
-    char* token = strtok(addr, ".");
-    while (token) {
-        if (parts >= 4) {
-            return 0; // too many segments
-        }
-        
-        // Only digits allowed
-        for (int i = 0; token[i]; i++) {
-            if (!isdigit((unsigned char)token[i])) {
-                return 0;
-            }
-        }
-        
-        // Reject leading zeros (e.g. "01")
-        if (token[0] == '0' && strlen(token) > 1) {
-            return 0;
-        }
-        
-        int num = atoi(token);
-        if (num < 0 || num > 255) {
-            return 0;
-        }
-        
-        parts++;
-        token = strtok(NULL, ".");
-    }
-    
-    return parts == 4;
+    return 1;
 }
 
 int copy_strip_quote(const char* src, char* dest, size_t dest_size) {
@@ -202,3 +131,132 @@ int copy_strip_quote(const char* src, char* dest, size_t dest_size) {
     
     return 1;
 }
+
+int to_quoted_string(const char* src, char* dest) {
+    if (!is_strict_string(src)) { // If not a quoted string
+        if (!sprintf(dest, "\"%s\"", src)) { // Quote the output string
+            return 0;
+        }
+    } else {
+        strncpy(dest, src, strlen(src)); // Copy the input quoted string to the output
+    }
+    return 1;
+}
+
+JsonStatus getBoolean(const char* json, const char* key, bool* dest) {
+    char buffer[7];
+    char key_[strlen(key)+2];
+    if (!to_quoted_string(key, key_)) { // Ensure 'key' is a qouted string
+        return JSON_KO;
+    }
+    debug_printf("%s\n", key);
+    if (!extract_value(json, key_, buffer, sizeof(buffer))) { // Extract the value associated with the key
+        debug_printf("\tMissing key: %s\n", key_);
+        return JSON_MISSING_KEY;
+    } else if (!is_strict_boolean(buffer)) { // Check if it's a boolean
+        debug_printf("\tNot a boolean: %s -> %s\n", key_, buffer);
+        return JSON_INVALID_BOOLEAN;
+    }
+    dest = (bool*)(!strcasecmp(buffer, "true") || buffer[0] == '1'); // Caste the value to the output
+    
+    debug_printf("\t-> %s: %d\n", key_, dest);
+    return JSON_OK;
+}
+
+JsonStatus getInteger(const char* json, const char* key, uint32_t* dest) {
+    char buffer[10];
+    char tmp[10];
+    char key_[strlen(key)+2];
+    if (!to_quoted_string(key, key_)) { // Ensure 'key' is a qouted string
+        return JSON_KO;
+    }
+    debug_printf("%s\n", key);
+    if (!extract_value(json, key_, buffer, sizeof(buffer))) { // Extract the value associated with the key
+        debug_printf("\tMissing key: %s\n", key_);
+        return JSON_MISSING_KEY;
+    }
+    copy_strip_quote(buffer, tmp, sizeof(tmp));
+    if (!is_strict_integer(tmp)) { // Check if it's an interger
+        debug_printf("\tNot an interger: %s -> %s\n", key_, tmp);
+        return JSON_INVALID_INTEGER;
+    }
+    *dest = atoi(tmp);; // Caste the value to the output
+    
+    debug_printf("\t-> %s: %d\n", key_, *dest);
+    return JSON_OK;
+}
+
+JsonStatus getFloatInt(const char* json, const char* key, uint32_t* dest) {
+    char buffer[16];
+    char tmp[16];
+    char key_[strlen(key)+2];
+    if (!to_quoted_string(key, key_)) { // Ensure 'key' is a qouted string
+        return JSON_KO;
+    }
+    debug_printf("%s\n", key);
+    if (!extract_value(json, key_, buffer, sizeof(buffer))) { // Extract the value associated with the key
+        debug_printf("\tMissing key: %s\n", key_);
+        return JSON_MISSING_KEY;
+    }
+    copy_strip_quote(buffer, tmp, sizeof(tmp));
+    debug_printf("\tfloat str: %s\n", tmp);
+    if (!is_strict_float(tmp)) { // Check if it's an float
+        debug_printf("\tNot a float: %s -> %s\n", key_, tmp);
+        return JSON_INVALID_FLOAT;
+    }
+    debug_printf("\tfloat: %.2f\n", atof(tmp));
+    *dest = (uint32_t)(atof(tmp)*1000); // Caste the value to the output
+    
+    debug_printf("\t-> %s: %d\n", key_, *dest);
+    return JSON_OK;
+}
+
+JsonStatus getString(const char* json, const char* key, char* dest, size_t dest_size) {
+    char buffer[dest_size];
+    char key_[strlen(key)+2];
+    if (!to_quoted_string(key, key_)) { // Ensure 'key' is a qouted string
+        return JSON_KO;
+    }
+    debug_printf("%s\n", key);
+    if (!extract_value(json, key_, buffer, dest_size)) { // Extract the value associated with the key
+        debug_printf("\tMissing key: %s\n", key_);
+        return JSON_MISSING_KEY;
+    }
+    if (!is_strict_string(buffer)) { // Check if it's a string
+        debug_printf("\tNot a string: %s -> %s\n", key_, buffer);
+        return JSON_INVALID_STRING;
+    } else if (!copy_strip_quote(buffer, dest, dest_size)) {
+        debug_printf("\tBad %s\n", key_);
+        return JSON_KO;
+    }
+    debug_printf("\t-> %s: %s\n", key_, dest);
+    return JSON_OK;
+}
+
+JsonStatus getIPAddress(const char* json, const char* key, uint32_t* dest) {
+    char buffer[17];
+    char tmp[17];
+    uint32_t tmp_ip;
+    char key_[strlen(key)+2];
+    if (!to_quoted_string(key, key_)) { // Ensure 'key' is a qouted string
+        return JSON_KO;
+    }
+    debug_printf("%s\n", key);
+    if (!extract_value(json, key_, buffer, sizeof(buffer))) { // Extract the value associated with the key
+        debug_printf("\tMissing key: %s\n", key_);
+        return JSON_MISSING_KEY;
+    }
+    copy_strip_quote(buffer, tmp, sizeof(tmp));
+    if (!is_valid_ip_address(tmp)) { // Check if it's an IP address
+        debug_printf("\tNot an IP address: %s -> %s\n", key_, buffer);
+        return JSON_INVALID_IP_ADDRESS;
+    }
+    *dest = ipaddr_addr(tmp);
+    if (*dest == -1) { // Double security check
+        debug_printf("\tInvalide IP: ipaddr -> %s\n", tmp);
+        return JSON_INVALID_IP_ADDRESS;
+    }
+    debug_printf("\t-> %s: %X\n", key_, *dest);
+    return JSON_OK;
+}
+

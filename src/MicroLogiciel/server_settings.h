@@ -24,7 +24,7 @@ typedef struct
     char network_password[32];
     char hostname[32];
     char domain_name[32];
-    uint32_t dns_ignores_network_suffix;
+    bool dns_ignores_network_suffix;
 } pico_server_settings;
 
 static JsonStatus parse_server_settings(http_connection conn, pico_server_settings *settings);
