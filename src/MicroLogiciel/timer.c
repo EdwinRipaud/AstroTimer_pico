@@ -31,7 +31,7 @@ SemaphoreHandle_t s_UpdateTimerSemaphore = NULL;
 
 static TaskHandle_t s_TimerTaskHandle = NULL;
 
-static JsonStatus parse_timer(http_connection conn, timer_settings *out)
+static JsonStatus parse_timer(http_connection conn, timer_settings *dest)
 {
     char buffer[128];
     int count = 0;
@@ -46,19 +46,19 @@ static JsonStatus parse_timer(http_connection conn, timer_settings *out)
         JsonStatus status;
         
         // picture (int)
-        status = getInteger(line, "picture", &out->picture_number);
+        status = getInteger(line, "picture", &dest->picture_number);
         if (status != JSON_OK) {
             return status;
         }
         
         // exposure (float)
-        status = getFloatInt(line, "exposure", &out->exposure_time);
+        status = getFloatInt(line, "exposure", &dest->exposure_time);
         if (status != JSON_OK) {
             return status;
         }
         
         // delay (float)
-        status = getFloatInt(line, "delay", &out->delay_time);
+        status = getFloatInt(line, "delay", &dest->delay_time);
         if (status != JSON_OK) {
             return status;
         }
@@ -75,8 +75,8 @@ static char *format_timer_settings(char *buffer, timer_settings *timer_data)
     debug_printf("\tformat_timer_settings:");
     int n = sprintf(buffer, "{\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}",
                     timer_data->picture_number,
-                    (float)timer_data->exposure_time/1000,
-                    (float)timer_data->delay_time/1000);
+                    (float)(timer_data->exposure_time)/1000,
+                    (float)(timer_data->delay_time)/1000);
     if (!n){
         debug_printf("\tUnable to format data :'(\n");
         return "Unable to format data";
@@ -102,13 +102,13 @@ void write_timer_settings(const timer_settings *new_settings)
 static void timer_task(void *arg)
 {
     timer_settings *param = arg;
-    
     uint32_t nbPicture = param->picture_number;
     uint32_t expTime = param->exposure_time;
     uint32_t delayTime = param->delay_time;
-    debug_printf("param: {\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}\n", nbPicture, (float)expTime/1000, (float)delayTime/1000);
+    debug_printf("param: {\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}\n", nbPicture, (float)(expTime)/1000, (float)(delayTime)/1000);
     TickType_t xLasteWakeTime = xTaskGetTickCount();
-    for (int i=0;i<nbPicture-1;i++) {
+    int i=1;
+    for (;i<nbPicture;i++) {
         debug_printf("\t- loop %d/%d - %d\n", i, nbPicture, xTaskGetTickCount());
         cyw43_arch_gpio_put(SHUTTER_PIN, 1);
         vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(expTime));
@@ -116,6 +116,7 @@ static void timer_task(void *arg)
         vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(delayTime));
     }
     // Last exposure outside the loop to skip the 'delayTime'
+    debug_printf("\t- loop %d/%d - %d\n", i, nbPicture, xTaskGetTickCount());
     cyw43_arch_gpio_put(SHUTTER_PIN, 1);
     vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(expTime));
     cyw43_arch_gpio_put(SHUTTER_PIN, 0);
@@ -200,11 +201,11 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
                     return true;
                 } else {
                     debug_printf("/!\\--- write_timer_settings() ---/!\\... ");
-                    //write_timer_settings(&timer_data);
+                    write_timer_settings(&timer_data);
                     debug_printf("Done\n");
                     xSemaphoreGive(s_UpdateTimerSemaphore);
                     http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-                    //watchdog_reboot(0, SRAM_END, 500);
+                    watchdog_reboot(0, SRAM_END, 500);
                 }
                 return false;
             } else {

@@ -18,7 +18,7 @@ typedef struct
     uint32_t delay_time;
 } timer_settings;
 
-static JsonStatus parse_timer(http_connection conn, timer_settings* out);
+static JsonStatus parse_timer(http_connection conn, timer_settings *dest);
 
 static char *format_timer_settings(char *buffer, timer_settings *timerData);
 

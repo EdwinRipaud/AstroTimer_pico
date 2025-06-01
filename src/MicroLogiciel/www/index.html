@@ -8,8 +8,16 @@
     <style type="text/css">
     </style>
     
-    <script>
-        // ----- Server settings API functions -----
+    <script language="JavaScript">
+        // ----- Utility functions -----
+        var last_update_time = Date.now();
+        var unrecoverable_error = null;
+        
+        function show_unrecoverable_error(text) {
+            unrecoverable_error = text;
+            document.getElementById("error_popup").style.display = "block";
+            document.getElementById("error_popup_text").innerHTML = text;
+        }
         // TODO: make an advance setting popup
         function show_settings_popup(show) {
             update_field_visibility();
@@ -21,11 +29,22 @@
                 el.style.display = document.getElementById(el.dataset.condition).checked ? "table-row" : "none";
             }
         }
+        function init_page() {
+            // Update Timer values every 30000ms
+            setInterval(timer_api_update, 30000); // TODO: make a dynamic update interval time based on page activity
+            for (const el of document.getElementsByClassName("modal_popup")) {
+                el.style.display = "none";
+            }
+            document.getElementById("popup_root").style.display = "none";
+            timer_api_update();
+        }
+        
+        // ----- Server settings API functions -----
         function edit_settings() {
             let xhr = new XMLHttpRequest();
             xhr.open("GET", '/api/settings', true);
             xhr.send();
-            xhr.onloadend = function () {
+            xhr.onloadend = function() {
                 try {
                     let data = JSON.parse(this.responseText);
                     for (const k of Object.keys(data)) {
@@ -58,7 +77,7 @@
             xhr.open("POST", '/api/settings', true);
             xhr.setRequestHeader("Content-Type", "application/json");
             xhr.send(JSON.stringify(data)+'\r\n');
-            xhr.onloadend = function () {
+            xhr.onloadend = function() {
                 if (this.responseText == "OK") {
                     show_settings_popup(false);
                     document.getElementById("reboot_popup").style.display = "block";
@@ -68,12 +87,13 @@
                 }
             };
         }
+        
         // ----- Timer settings API functions -----
         function edit_timer_settings() {
             let xhr = new XMLHttpRequest();
             xhr.open("GET", '/api/timer/settings', true);
             xhr.send();
-            xhr.onloadend = function () {
+            xhr.onloadend = function() {
                 try {
                     let data = JSON.parse(this.responseText);
                     for (const el of document.getElementsByClassName("timer_setting_field")) {
@@ -106,14 +126,13 @@
                 }
             };
         }
+        
         // ----- Timer API functions -----
         function timer_api_send() {
-            const data = {
-                picture : parseInt(document.getElementById('picture').value),
-                exposure: parseFloat(document.getElementById('exposure').value),
-                delay   : parseFloat(document.getElementById('delay').value)
-            };
-            
+            var data={};
+            for (const el of document.getElementsByClassName("timer_param_field")) {
+                data[el.id]=el.value;
+            }
             let xhr = new XMLHttpRequest();
             xhr.open("POST", '/api/timer/start', true);
             xhr.setRequestHeader("Content-Type", "application/json");
@@ -143,49 +162,38 @@
         function timer_api_update() {
             var hasFocus = inputFocus.includes(document.activeElement.id);
             if (!hasFocus) {
-                var xhr = new XMLHttpRequest();
+                let xhr = new XMLHttpRequest();
                 xhr.open("GET", "/api/timer/update", true);
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState === 4 && xhr.status === 200) {
-                        try { //  TODO: set updated parameters as in 'edit_timer_settings()'
-                            var data = JSON.parse(xhr.responseText);
-                            document.getElementById("picture").value = data.picture;
-                            document.getElementById("exposure").value = data.exposure;
-                            document.getElementById("delay").value = data.delay;
-                        } catch (e) {
-                            console.error("Error JSON:", e);
+                xhr.send();
+                xhr.onloadend = function() {
+                    try {
+                        let data = JSON.parse(this.responseText);
+                        for (const el of document.getElementsByClassName("timer_param_field")) {
+                            el.value = data[el.id];
                         }
                     }
+                    catch (err) {
+                        show_unrecoverable_error(err.message);
+                    }
                 };
-                xhr.send();
             } else {
                 console.log("hasFocus");
             }
         }
-        // Onload function
-        function init_page() {
-            // Update Timer values every 5000ms
-            setInterval(timer_api_update, 5000); // TODO: make a dynamic update interval time based on page activity
-            
-            for (const el of document.getElementsByClassName("modal_popup")) {
-                el.style.display = "none";
-            }
-            document.getElementById("popup_root").style.display = "none";
-        }
     </script>
     
-    <body>
+    <body onload="init_page()">
         <div class="main">
             <div class="header">
                 <h1>Welcome to AstroTimer Webapp</h1>
                 <a href="javascript:edit_settings()" class="settings_link"><h2>Settings</h2></a>
-                <p>Work in progress...</p>
+                <p>Work in progress... Peak design</p>
             </div>
             
             <div class="setting_table">
-                <span>Number of picture:</span><input id="picture" value="3"/><br/>
-                <span>Exposure time:</span><input id="exposure" value="2"/><span>s</span><br/>
-                <span>Delay time:</span><input id="delay" value="0.5"/><span>s</span><br/>
+                <span>Number of picture:</span><input class="timer_param_field" id="picture" type="number" min="1" max="9999" step="1" placeholder="3" required/><br/>
+                <span>Exposure time:</span><input class="timer_param_field" id="exposure" type="number" min="0.5" max="3600" step="0.5" placeholder="2" required/><span>s</span><br/>
+                <span>Delay time:</span><input class="timer_param_field" id="delay" type="number" min="0" max="3600" step="0.25" placeholder="1.5" required/><span>s</span><br/>
                 <button id = "btn_startTimer" onclick="timer_api_send()">Start</button>
                 <button id = "btn_stopTimer" onclick="timer_api_stop()">Stop</button>
                 <button onclick="timer_api_update()">Rafraîchir maintenant</button>
@@ -197,9 +205,9 @@
                     <div id="timer_settings" class="timer_settings">
                         <table>
                             <caption>Timer settings</cation>
-                            <tr><td>Number of picture:</td><td><input id="picture" class="timer_setting_field"/></td></tr>
-                            <tr><td>Exposure time:</td><td><input id="exposure" class="timer_setting_field"/></td></tr>
-                            <tr><td>Delay time:</td><td><input id="delay" class="timer_setting_field"/></td></tr>
+                            <tr><td>Number of picture:</td><td><input class="timer_setting_field" id="picture" type="number" min="1" max="9999"  step="1" placeholder="2"/></td></tr>
+                            <tr><td>Exposure time:</td><td><input class="timer_setting_field" id="exposure" type="number" min="0.5" max="3600" step="0.5"placeholder="2"/></td></tr>
+                            <tr><td>Delay time:</td><td><input class="timer_setting_field" id="delay" type="number" min="0" max="3600" step="0.25" placeholder="1.5"/></td></tr>
                         </table>
                         <button onclick="apply_timer_settings()">Apply</button>
                     </div>
@@ -228,6 +236,15 @@
                     </div>
                 </div>
             </div>
+            
+            <div id="error_popup" class="error_popup modal_popup">
+                <p id="error_popup_text"></p>
+            </div>
+            
+            <div id="reboot_popup" class="reboot_popup modal_popup">
+                <p>The settings have been updated and the device is restarting.<br/>Please disconnect from the Wi-Fi network, reconnect to it and proceed to the network login page.</p>
+            </div>
+
         </div>
     </body>
 </html>

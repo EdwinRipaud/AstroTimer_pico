@@ -199,12 +199,10 @@ JsonStatus getFloatInt(const char* json, const char* key, uint32_t* dest) {
         return JSON_MISSING_KEY;
     }
     copy_strip_quote(buffer, tmp, sizeof(tmp));
-    debug_printf("\tfloat str: %s\n", tmp);
     if (!is_strict_float(tmp)) { // Check if it's an float
         debug_printf("\tNot a float: %s -> %s\n", key_, tmp);
         return JSON_INVALID_FLOAT;
     }
-    debug_printf("\tfloat: %.2f\n", atof(tmp));
     *dest = (uint32_t)(atof(tmp)*1000); // Caste the value to the output
     
     debug_printf("\t-> %s: %d\n", key_, *dest);
