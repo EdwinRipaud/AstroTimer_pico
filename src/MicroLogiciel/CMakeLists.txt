@@ -62,7 +62,7 @@ add_executable(${PROGRAM_NAME}
     httpserver.c
     server_settings.c
     json_parser.c
-    timer.c
+    timer_settings.c
     )
 
 # create File System

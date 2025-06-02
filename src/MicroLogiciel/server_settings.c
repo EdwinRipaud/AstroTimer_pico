@@ -15,13 +15,13 @@ static char buffer_server_settings[405]; // set to the maximal size of the serve
 
 const union 
 {
-    pico_server_settings settings;
-    char padding[FLASH_SECTOR_SIZE-sizeof(pico_server_settings)]; // padding to get FLASH_SECTOR_SIZE size
+    server_settings settings;
+    char padding[FLASH_SECTOR_SIZE-sizeof(server_settings)]; // padding to get FLASH_SECTOR_SIZE size
 } __attribute__((aligned(FLASH_SECTOR_SIZE))) s_Settings = {
     .settings = {
-        .ip_address = 0x017BA8C0, // 192.168.123.1
+        .ip_address = 0x010118AC, // 172.24.1.1
         .network_mask = 0x00FFFFFF, // 255.255.255.0
-        .secondary_address = 0x0,//06433c6, // 198.51.100.0 // See the comment before 'secondary_address' definition in 'server_settings.h' for details. // TODO: put back secondary IP address
+        .secondary_address = 0x0,//010A640A, // 10.100.10.1 // See the comment before 'secondary_address' definition in 'server_settings.h' for details. // TODO: put back secondary IP address
         .network_name = WIFI_SSID,
         .network_password = WIFI_PASSWORD,
         .hostname = "AstroTimer",
@@ -30,7 +30,7 @@ const union
     }
 };
 
-static JsonStatus parse_server_settings(http_connection conn, pico_server_settings *settings)
+static JsonStatus parse_server_settings(http_connection conn, server_settings *settings)
 {
     char buffer[32];
     char dest[32];
@@ -136,7 +136,7 @@ static JsonStatus parse_server_settings(http_connection conn, pico_server_settin
     return JSON_OK;
 }
 
-static char *format_server_settings(char *buffer, const pico_server_settings *settings)
+static char *format_server_settings(char *buffer, const server_settings *settings)
 {
     debug_printf("\tformat_server_settings:");
     int n = sprintf(buffer, "{\"ssid\":\"%s\", \"has_password\":%d, \"password\":\"%s\", \"hostname\":\"%s\", \"use_domain\":%d, \"domain\":\"%s\", \"ipaddr\":\"%d.%d.%d.%d\", \"netmask\":\"%d.%d.%d.%d\", \"use_second_ip\":%d, \"ipaddr2\":\"%d.%d.%d.%d\", \"dns_ignores_network_suffix\":%d}\n",
@@ -163,12 +163,12 @@ static char *format_server_settings(char *buffer, const pico_server_settings *se
     return NULL;
 }
 
-const pico_server_settings *get_pico_server_settings()
+const server_settings *get_server_settings()
 {
     return &s_Settings.settings;
 }
 
-void write_pico_server_settings(const pico_server_settings *new_settings)
+void write_pico_server_settings(const server_settings *new_settings)
 {
     portENTER_CRITICAL();
     flash_range_erase((uint32_t)&s_Settings - XIP_BASE, FLASH_SECTOR_SIZE);
@@ -179,8 +179,8 @@ void write_pico_server_settings(const pico_server_settings *new_settings)
 bool do_handle_settings_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
 {
     if (type == HTTP_POST) {
-        static pico_server_settings settings;
-        settings = *get_pico_server_settings();
+        static server_settings settings;
+        settings = *get_server_settings();
         
         JsonStatus status = parse_server_settings(conn, &settings);
         if (status != JSON_OK) {
@@ -198,7 +198,7 @@ bool do_handle_settings_api_call(http_connection conn, enum http_request_type ty
          
         return true;
     } else {
-        const pico_server_settings *settings = get_pico_server_settings();
+        const server_settings *settings = get_server_settings();
         format_server_settings(buffer_server_settings, settings);
         http_server_send_reply(conn, "200 OK", "text/json", buffer_server_settings, "close", -1);
         

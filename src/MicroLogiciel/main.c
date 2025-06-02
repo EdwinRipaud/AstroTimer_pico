@@ -14,11 +14,11 @@
 #include "dnsserver/dnsserver.h"
 #include "httpserver.h"
 #include "server_settings.h"
+#include "timer_settings.h"
 #include "debug_printf.h"
 #include "json_parser.h"
-#include "timer.h"
 
-#define TEST_TASK_PRIORITY (tskIDLE_PRIORITY + 2UL)
+#define MAIN_TASK_PRIORITY (tskIDLE_PRIORITY + 2UL)
 
 struct SimpleFSContext
 {
@@ -83,7 +83,7 @@ static void main_task(__unused void *params)
     xSemaphoreGive(s_StopTimerSemaphore);
     xSemaphoreGive(s_UpdateTimerSemaphore);
     
-    const pico_server_settings *settings = get_pico_server_settings();
+    const server_settings *settings = get_server_settings();
 
     cyw43_arch_enable_ap_mode(settings->network_name, settings->network_password, settings->network_password[0] ? CYW43_AUTH_WPA2_MIXED_PSK : CYW43_AUTH_OPEN);
 
@@ -162,7 +162,7 @@ int main(void)
     // Get notified if the user presses a key
     stdio_set_chars_available_callback(key_pressed_func, NULL);
     
-    xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, TEST_TASK_PRIORITY, &task);
+    xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &task);
     vTaskStartScheduler();
     
     // Never get here

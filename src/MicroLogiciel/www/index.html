@@ -18,17 +18,6 @@
             document.getElementById("error_popup").style.display = "block";
             document.getElementById("error_popup_text").innerHTML = text;
         }
-        // TODO: make an advance setting popup
-        function show_settings_popup(show) {
-            update_field_visibility();
-            document.getElementById("popup_root").style.display = show ? "block" : "none";
-            document.getElementById("settings_popup").style.display = show ? "block" : "none";
-        }
-        function update_field_visibility() {
-            for (const el of document.getElementsByClassName("dynamic_row")) {
-                el.style.display = document.getElementById(el.dataset.condition).checked ? "table-row" : "none";
-            }
-        }
         function init_page() {
             // Update Timer values every 30000ms
             setInterval(timer_api_update, 30000); // TODO: make a dynamic update interval time based on page activity
@@ -39,8 +28,36 @@
             timer_api_update();
         }
         
-        // ----- Server settings API functions -----
+        // ----- Settings API functions -----
+        function show_settings_popup(show) {
+            update_field_visibility();
+            document.getElementById("popup_root").style.display = show ? "block" : "none";
+            document.getElementById("settings_popup").style.display = show ? "block" : "none";
+            show_advance_settings_popup(false);
+        }
+        function show_advance_settings_popup(show) {
+            update_field_visibility();
+            document.getElementById("advance_settings").style.display = show ? "block" : "none";
+            document.getElementById("advance_settings_link").innerText = show ? "Collapse" : "Advance settings";
+            document.getElementById("advance_settings_link").href = show ? "javascript:show_advance_settings_popup(false)" : "javascript:show_advance_settings_popup(true)";
+        }
+        function update_field_visibility() {
+            for (const el of document.getElementsByClassName("dynamic_row")) {
+                el.style.display = document.getElementById(el.dataset.condition).checked ? "table-row" : "none";
+            }
+        }
         function edit_settings() {
+            edit_timer_settings();
+            edit_server_settings();
+            show_settings_popup(true);
+        }
+        function apply_settings() {
+            apply_timer_settings();
+            apply_server_settings();
+        }
+        
+        // ### server settings
+        function edit_server_settings() {
             let xhr = new XMLHttpRequest();
             xhr.open("GET", '/api/settings', true);
             xhr.send();
@@ -55,17 +72,13 @@
                             el.value = data[k];
                         }
                     }
-                    show_settings_popup(true);
                 }
                 catch(err) {
                     show_unrecoverable_error(err.message);
                 }
           };
-            edit_timer_settings();
         }
-        // TODO: split settings into 2 groups: lambda and advance settings
-        // ???: send lambda and/or advace settings depending on the visibility of the advance section
-        function apply_settings() {
+        function apply_server_settings() {
             var data={};
             for (const el of document.getElementsByClassName("server_settings_checkbox")) {
                 data[el.id]=el.checked;
@@ -88,7 +101,7 @@
             };
         }
         
-        // ----- Timer settings API functions -----
+        // ### timer settings
         function edit_timer_settings() {
             let xhr = new XMLHttpRequest();
             xhr.open("GET", '/api/timer/settings', true);
@@ -99,14 +112,12 @@
                     for (const el of document.getElementsByClassName("timer_setting_field")) {
                         el.value = data[el.id];
                     }
-                    show_settings_popup(true);
                 }
                 catch(err) {
                     show_unrecoverable_error(err.message);
                 }
           };
         }
-        // TODO: group with server settings
         function apply_timer_settings() {
             var data={};
             for (const el of document.getElementsByClassName("timer_setting_field")) {
@@ -201,38 +212,35 @@
             
             <div class="modal_background" id="popup_root">
                 <div id="settings_popup" class="settings_popup modal_popup">
-                    <h2>AstroTimer HTTP server settings</h2>
-                    <div id="timer_settings" class="timer_settings">
+                    <div id="nominal_settings" class="nominal_settings ">
+                        <h2>AstroTimer settings</h2>
                         <table>
-                            <caption>Timer settings</cation>
+                            <tr><td>Timer settings</td></tr>
                             <tr><td>Number of picture:</td><td><input class="timer_setting_field" id="picture" type="number" min="1" max="9999"  step="1" placeholder="2"/></td></tr>
                             <tr><td>Exposure time:</td><td><input class="timer_setting_field" id="exposure" type="number" min="0.5" max="3600" step="0.5"placeholder="2"/></td></tr>
                             <tr><td>Delay time:</td><td><input class="timer_setting_field" id="delay" type="number" min="0" max="3600" step="0.25" placeholder="1.5"/></td></tr>
-                        </table>
-                        <button onclick="apply_timer_settings()">Apply</button>
-                    </div>
-                    <div id="server_settings" class="server_settings">
-                        <table>
-                            <caption>Server settings</caption>
+                            <tr><td>Server settings</td></tr>
                             <tr><td>Wi-Fi Network name (SSID):</td><td><input id="ssid" class="server_settings_field"></td></tr>
                             <tr><td colspan="2"><input id="has_password" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Require Wi-Fi password for connecting</td></tr>
                             <tr class="dynamic_row" data-condition="has_password"><td>Wi-Fi Password:</td><td><input id="password" class="server_settings_field"></td></tr>
-                            <tr><td>IP address:</td><td><input id="ipaddr" class="server_settings_field"></td></tr>
-                            
-                            <tr><td>Advance server settings</td></tr>
-                            <tr><td>Network mask:</td><td><input id="netmask" class="server_settings_field"></td></tr>
+                            <tr><td colspan="2"><input id="use_second_ip" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Auto load webapp on connection</td></tr>
+                        </table>
+                        <a href="javascript:show_advance_settings_popup(true)" id="advance_settings_link"><p id="advance_settings_text">Advance settings</p></a>
+                    </div>
+                    <div id="advance_settings" class="advance_settings modal_popup">
+                        <table>
                             <tr><td>Host name:</td><td><input id="hostname" class="server_settings_field"></td></tr>
+                            <tr><td>IP address:</td><td><input id="ipaddr" class="server_settings_field"></td></tr>
+                            <tr><td>Network mask:</td><td><input id="netmask" class="server_settings_field"></td></tr>
                             <tr><td colspan="2"><input id="use_domain" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Use a connection DNS suffix</td></tr>
                             <tr class="dynamic_row" data-condition="use_domain"><td>DNS suffix:</td><td><input id="domain" class="server_settings_field"></td></tr>
+                            <tr class="dynamic_row" data-condition="use_second_ip"><td>Secondary IP address:</td><td><input id="ipaddr2" class="server_settings_field" value="10.100.10.1"></td></tr>
                             <tr><td colspan="2"><input id="dns_ignores_network_suffix" type="checkbox" class="server_settings_checkbox">Ignore domain if host name matches</td></tr>
-                            
-                            <tr><td colspan="2"><input id="use_second_ip" type="checkbox" onchange="update_field_visibility()" class="server_settings_checkbox">Show 'sign into the network' message</td></tr>
-                            <tr class="dynamic_row" data-condition="use_second_ip"><td>Secondary IP address:</td><td><input id="ipaddr2" class="server_settings_field"></td></tr>
                         </table>
                     </div>
                     <div>
                         <button onclick="apply_settings()">Apply</button>
-                        <button onclick="show_settings_popup(false)">Hide</button>
+                        <button onclick="javascript:show_settings_popup(false)">Hide</button>
                     </div>
                 </div>
             </div>

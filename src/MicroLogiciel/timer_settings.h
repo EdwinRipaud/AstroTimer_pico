@@ -1,5 +1,5 @@
-#ifndef TIMER_H
-#define TIMER_H
+#ifndef TIMER_SETTINGS_H
+#define TIMER_SETTINGS_H
 
 #include <FreeRTOS.h>
 #include <semphr.h>

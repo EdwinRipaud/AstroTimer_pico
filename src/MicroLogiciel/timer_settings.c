@@ -1,4 +1,4 @@
-#include "timer.h"
+#include "timer_settings.h"
 
 #include <portmacro.h>
 
@@ -200,12 +200,13 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
                     http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
                     return true;
                 } else {
+                    // TODO: acquire all semaphores (s_StartTimerSemaphore, s_StopTimerSemaphore) and task handler (s_TimerTaskHandle) before writing
                     debug_printf("/!\\--- write_timer_settings() ---/!\\... ");
                     write_timer_settings(&timer_data);
                     debug_printf("Done\n");
                     xSemaphoreGive(s_UpdateTimerSemaphore);
-                    http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-                    watchdog_reboot(0, SRAM_END, 500);
+                    //http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
+                    //watchdog_reboot(0, SRAM_END, 500);
                 }
                 return false;
             } else {
