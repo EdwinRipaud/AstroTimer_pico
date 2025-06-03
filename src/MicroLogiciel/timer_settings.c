@@ -9,6 +9,7 @@
 #include <hardware/watchdog.h>
 
 #include "json_parser.h"
+#include "timer_core.h"
 #include "debug_printf.h"
 
 static char buffer_timer_data[100];
@@ -102,26 +103,11 @@ void write_timer_settings(const timer_settings *new_settings)
 static void timer_task(void *arg)
 {
     timer_settings *param = arg;
-    uint32_t nbPicture = param->picture_number;
-    uint32_t expTime = param->exposure_time;
-    uint32_t delayTime = param->delay_time;
-    debug_printf("param: {\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}\n", nbPicture, (float)(expTime)/1000, (float)(delayTime)/1000);
-    TickType_t xLasteWakeTime = xTaskGetTickCount();
-    int i=1;
-    for (;i<nbPicture;i++) {
-        debug_printf("\t- loop %d/%d - %d\n", i, nbPicture, xTaskGetTickCount());
-        cyw43_arch_gpio_put(SHUTTER_PIN, 1);
-        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(expTime));
-        cyw43_arch_gpio_put(SHUTTER_PIN, 0);
-        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(delayTime));
-    }
-    // Last exposure outside the loop to skip the 'delayTime'
-    debug_printf("\t- loop %d/%d - %d\n", i, nbPicture, xTaskGetTickCount());
-    cyw43_arch_gpio_put(SHUTTER_PIN, 1);
-    vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(expTime));
-    cyw43_arch_gpio_put(SHUTTER_PIN, 0);
+    debug_printf("Start Timer_task...\n");
     
-    debug_printf("\tEnd of task!\n");
+    timer_core(param->picture_number, param->exposure_time, param->delay_time);
+    
+    debug_printf("Timer_task ended!\n");
     s_TimerTaskHandle = NULL;
     vTaskDelete(NULL);
 }

@@ -63,6 +63,7 @@ add_executable(${PROGRAM_NAME}
     server_settings.c
     json_parser.c
     timer_settings.c
+    timer_core.c
     )
 
 # create File System

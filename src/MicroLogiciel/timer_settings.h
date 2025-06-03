@@ -8,7 +8,6 @@
 #include "json_parser.h"
 #include "httpserver.h"
 
-#define SHUTTER_PIN CYW43_WL_GPIO_LED_PIN // FIXME: replace by physical PIN
 #define TIMER_TASK_PRIORITY (tskIDLE_PRIORITY + 2UL)
 
 typedef struct
