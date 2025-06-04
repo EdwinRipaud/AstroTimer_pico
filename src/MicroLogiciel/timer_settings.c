@@ -115,12 +115,11 @@ static void timer_task(void *arg)
 bool do_handle_timer_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
 {
     static timer_settings timer_data;
-    timer_data = *get_timer_settings();
     if (!strcmp(path, "start")) {
         debug_printf("start\n");
+        timer_data = *get_timer_settings();
         if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
             JsonStatus status = parse_timer(conn, &timer_data);
-            debug_printf("\tstatus: %s\n", JSON_status_message(status));
             if (status != JSON_OK) {
                 char *err = JSON_status_message(status);
                 debug_printf("Error: %s\n", err);
@@ -128,7 +127,11 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
                 http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
                 return true;
             }
-            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, &timer_data, TIMER_TASK_PRIORITY, &s_TimerTaskHandle);
+            timer_settings interval_data = timer_data;
+            debug_printf("/!\\--- write_timer_settings() ---/!\\... ");
+            write_timer_settings(&timer_data);
+            debug_printf("Done\n");
+            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, &interval_data, TIMER_TASK_PRIORITY, &s_TimerTaskHandle);
             xSemaphoreGive(s_StartTimerSemaphore);
             http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
             return true;
@@ -141,6 +144,7 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
     }
     else if (!strcmp(path, "stop")) {
         debug_printf("stop\n");
+        timer_data = *get_timer_settings();
         if (xSemaphoreTake(s_StopTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle != NULL) {
             vTaskDelete(s_TimerTaskHandle);
             s_TimerTaskHandle = NULL;
@@ -157,6 +161,7 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
     }
     else if (!strcmp(path, "update")) {
         debug_printf("update\n");
+        timer_data = *get_timer_settings();
         if (xSemaphoreTake(s_UpdateTimerSemaphore, 0) == pdTRUE) {
             char *err = format_timer_settings(buffer_timer_data, &timer_data);
             if (err) {
@@ -175,6 +180,7 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
         }
     } else if (!strcmp(path, "settings")) {
         debug_printf("settings ");
+        timer_data = *get_timer_settings();
         if (xSemaphoreTake(s_UpdateTimerSemaphore, 0) == pdTRUE) {
             if (type == HTTP_POST) {
                 debug_printf("[POST]\n");
