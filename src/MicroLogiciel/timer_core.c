@@ -1,7 +1,9 @@
 #include "timer_core.h"
 
 #include <pico/cyw43_arch.h>
-#include <pico/stdlib.h>
+
+#include <FreeRTOS.h>
+#include <task.h>
 
 #include "debug_printf.h"
 

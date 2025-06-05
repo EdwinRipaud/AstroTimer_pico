@@ -1,18 +1,13 @@
 #include "timer_settings.h"
 
+#include <pico/cyw43_arch.h>
+
 #include <portmacro.h>
 
-#include <pico/cyw43_arch.h>
-#include <pico/stdlib.h>
-
 #include <hardware/flash.h>
-#include <hardware/watchdog.h>
 
 #include "json_parser.h"
-#include "timer_core.h"
 #include "debug_printf.h"
-
-static char buffer_timer_data[100];
 
 const union
 {
@@ -26,13 +21,7 @@ const union
     }
 };
 
-SemaphoreHandle_t s_StartTimerSemaphore = NULL;
-SemaphoreHandle_t s_StopTimerSemaphore = NULL;
-SemaphoreHandle_t s_UpdateTimerSemaphore = NULL;
-
-static TaskHandle_t s_TimerTaskHandle = NULL;
-
-static JsonStatus parse_timer(http_connection conn, timer_settings *dest)
+JsonStatus parse_timer(http_connection conn, timer_settings *dest)
 {
     char buffer[128];
     int count = 0;
@@ -71,7 +60,7 @@ static JsonStatus parse_timer(http_connection conn, timer_settings *dest)
     return JSON_OK;
 }
 
-static char *format_timer_settings(char *buffer, timer_settings *timer_data)
+char *format_timer_settings(char *buffer, timer_settings *timer_data)
 {
     debug_printf("\tformat_timer_settings:");
     int n = sprintf(buffer, "{\"picture\":%d,\"exposure\":%.2f,\"delay\":%.2f}",
@@ -98,122 +87,4 @@ void write_timer_settings(const timer_settings *new_settings)
     flash_range_erase((uint32_t)&s_TimerSettings - XIP_BASE, FLASH_SECTOR_SIZE);
     flash_range_program((uint32_t)&s_TimerSettings - XIP_BASE, (const uint8_t *)new_settings, sizeof(*new_settings));
     portEXIT_CRITICAL();
-}
-
-static void timer_task(void *arg)
-{
-    timer_settings *param = arg;
-    debug_printf("Start Timer_task...\n");
-    
-    timer_core(param->picture_number, param->exposure_time, param->delay_time);
-    
-    debug_printf("Timer_task ended!\n");
-    s_TimerTaskHandle = NULL;
-    vTaskDelete(NULL);
-}
-
-bool do_handle_timer_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
-{
-    static timer_settings timer_data;
-    if (!strcmp(path, "start")) {
-        debug_printf("start\n");
-        timer_data = *get_timer_settings();
-        if (xSemaphoreTake(s_StartTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle == NULL){
-            JsonStatus status = parse_timer(conn, &timer_data);
-            if (status != JSON_OK) {
-                char *err = JSON_status_message(status);
-                debug_printf("Error: %s\n", err);
-                xSemaphoreGive(s_StartTimerSemaphore);
-                http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
-                return true;
-            }
-            timer_settings interval_data = timer_data;
-            debug_printf("/!\\--- write_timer_settings() ---/!\\... ");
-            write_timer_settings(&timer_data);
-            debug_printf("Done\n");
-            xTaskCreate(timer_task, "Timer", configMINIMAL_STACK_SIZE, &interval_data, TIMER_TASK_PRIORITY, &s_TimerTaskHandle);
-            xSemaphoreGive(s_StartTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-            return true;
-        } else {
-            debug_printf("Timer task is already running\n");
-            xSemaphoreGive(s_StartTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "NOT OK", "close", -1);
-            return false;
-        }
-    }
-    else if (!strcmp(path, "stop")) {
-        debug_printf("stop\n");
-        timer_data = *get_timer_settings();
-        if (xSemaphoreTake(s_StopTimerSemaphore, 0) == pdTRUE && s_TimerTaskHandle != NULL) {
-            vTaskDelete(s_TimerTaskHandle);
-            s_TimerTaskHandle = NULL;
-            xSemaphoreGive(s_StopTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-            cyw43_arch_gpio_put(SHUTTER_PIN, 0);
-            return true;
-        } else {
-            debug_printf("No Timer task is running\n");
-            xSemaphoreGive(s_StopTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "NOT OK", "close", -1);
-            return false;
-        }
-    }
-    else if (!strcmp(path, "update")) {
-        debug_printf("update\n");
-        timer_data = *get_timer_settings();
-        if (xSemaphoreTake(s_UpdateTimerSemaphore, 0) == pdTRUE) {
-            char *err = format_timer_settings(buffer_timer_data, &timer_data);
-            if (err) {
-                debug_printf("\tError: %s\n", err);
-                http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
-                return true;
-            }
-            xSemaphoreGive(s_UpdateTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "application/json", buffer_timer_data, "close", -1);
-            return true;
-        } else {
-            debug_printf("Timer is updating webapp infos...\n");
-            xSemaphoreGive(s_UpdateTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "NOT OK", "close", -1);
-            return false;
-        }
-    } else if (!strcmp(path, "settings")) {
-        debug_printf("settings ");
-        timer_data = *get_timer_settings();
-        if (xSemaphoreTake(s_UpdateTimerSemaphore, 0) == pdTRUE) {
-            if (type == HTTP_POST) {
-                debug_printf("[POST]\n");
-                JsonStatus status = parse_timer(conn, &timer_data);
-                debug_printf("\tstatus: %s\n", JSON_status_message(status));
-                if (status != JSON_OK) {
-                    char *err = JSON_status_message(status);
-                    debug_printf("Error: %s\n", err);
-                    http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
-                    return true;
-                } else {
-                    // TODO: acquire all semaphores (s_StartTimerSemaphore, s_StopTimerSemaphore) and task handler (s_TimerTaskHandle) before writing
-                    debug_printf("/!\\--- write_timer_settings() ---/!\\... ");
-                    write_timer_settings(&timer_data);
-                    debug_printf("Done\n");
-                    xSemaphoreGive(s_UpdateTimerSemaphore);
-                    //http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-                    //watchdog_reboot(0, SRAM_END, 500);
-                }
-                return false;
-            } else {
-                debug_printf("[GET]\n");
-                format_timer_settings(buffer_timer_data, &timer_data);
-                xSemaphoreGive(s_UpdateTimerSemaphore);
-                http_server_send_reply(conn, "200 OK", "text/json", buffer_timer_data, "close", -1);
-                return true;
-            }
-        } else {
-            debug_printf("Timer is updating settings...\n");
-            xSemaphoreGive(s_UpdateTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/plain", "NOT OK", "close", -1);
-            return false;
-        }
-    }
-    return false;
 }

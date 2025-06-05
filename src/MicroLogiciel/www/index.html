@@ -174,7 +174,7 @@
             var hasFocus = inputFocus.includes(document.activeElement.id);
             if (!hasFocus) {
                 let xhr = new XMLHttpRequest();
-                xhr.open("GET", "/api/timer/update", true);
+                xhr.open("GET", "/api/timer/settings", true);
                 xhr.send();
                 xhr.onloadend = function() {
                     try {

@@ -27,14 +27,12 @@ typedef struct
     bool dns_ignores_network_suffix;
 } server_settings;
 
-static JsonStatus parse_server_settings(http_connection conn, server_settings *settings);
+JsonStatus parse_server_settings(http_connection conn, server_settings *settings);
 
-static char *format_server_settings(char *buffer, const server_settings *settings);
+char *format_server_settings(char *buffer, const server_settings *settings);
 
 const server_settings *get_server_settings();
 
 void write_pico_server_settings(const server_settings *new_settings);
-
-bool do_handle_settings_api_call(http_connection conn, enum http_request_type type, char *path, void *context);
 
 #endif

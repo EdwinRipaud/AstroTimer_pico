@@ -64,6 +64,7 @@ add_executable(${PROGRAM_NAME}
     json_parser.c
     timer_settings.c
     timer_core.c
+    api_callbacks.c
     )
 
 # create File System

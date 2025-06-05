@@ -1,9 +1,10 @@
 #ifndef TIMER_SETTINGS_H
 #define TIMER_SETTINGS_H
 
+#include <pico/stdlib.h>
+
 #include <FreeRTOS.h>
 #include <semphr.h>
-#include <task.h>
 
 #include "json_parser.h"
 #include "httpserver.h"
@@ -17,16 +18,12 @@ typedef struct
     uint32_t delay_time;
 } timer_settings;
 
-static JsonStatus parse_timer(http_connection conn, timer_settings *dest);
+JsonStatus parse_timer(http_connection conn, timer_settings *dest);
 
-static char *format_timer_settings(char *buffer, timer_settings *timerData);
+char *format_timer_settings(char *buffer, timer_settings *timerData);
 
 const timer_settings *get_timer_settings();
 
 void write_timer_settings(const timer_settings *new_settings);
-
-static void timer_task(void *arg);
-
-bool do_handle_timer_api_call(http_connection conn, enum http_request_type type, char *path, void *context);
 
 #endif

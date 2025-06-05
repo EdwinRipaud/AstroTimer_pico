@@ -15,6 +15,7 @@
 #include "httpserver.h"
 #include "server_settings.h"
 #include "timer_settings.h"
+#include "api_callbacks.h"
 #include "debug_printf.h"
 #include "json_parser.h"
 

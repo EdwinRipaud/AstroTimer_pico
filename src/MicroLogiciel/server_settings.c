@@ -1,17 +1,13 @@
 #include "server_settings.h"
 
+#include <pico/cyw43_arch.h>
+
 #include <portmacro.h>
 
-#include <pico/cyw43_arch.h>
-#include <pico/stdlib.h>
-
 #include <hardware/flash.h>
-#include <hardware/watchdog.h>
 
 #include "json_parser.h"
 #include "debug_printf.h"
-
-static char buffer_server_settings[405]; // set to the maximal size of the server settings string
 
 const union 
 {
@@ -30,7 +26,7 @@ const union
     }
 };
 
-static JsonStatus parse_server_settings(http_connection conn, server_settings *settings)
+JsonStatus parse_server_settings(http_connection conn, server_settings *settings)
 {
     char buffer[32];
     char dest[32];
@@ -136,7 +132,7 @@ static JsonStatus parse_server_settings(http_connection conn, server_settings *s
     return JSON_OK;
 }
 
-static char *format_server_settings(char *buffer, const server_settings *settings)
+char *format_server_settings(char *buffer, const server_settings *settings)
 {
     debug_printf("\tformat_server_settings:");
     int n = sprintf(buffer, "{\"ssid\":\"%s\", \"has_password\":%d, \"password\":\"%s\", \"hostname\":\"%s\", \"use_domain\":%d, \"domain\":\"%s\", \"ipaddr\":\"%d.%d.%d.%d\", \"netmask\":\"%d.%d.%d.%d\", \"use_second_ip\":%d, \"ipaddr2\":\"%d.%d.%d.%d\", \"dns_ignores_network_suffix\":%d}\n",
@@ -174,35 +170,4 @@ void write_pico_server_settings(const server_settings *new_settings)
     flash_range_erase((uint32_t)&s_Settings - XIP_BASE, FLASH_SECTOR_SIZE);
     flash_range_program((uint32_t)&s_Settings - XIP_BASE, (const uint8_t *)new_settings, sizeof(*new_settings));
     portEXIT_CRITICAL();
-}
-
-bool do_handle_settings_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
-{
-    if (type == HTTP_POST) {
-        static server_settings settings;
-        settings = *get_server_settings();
-        
-        JsonStatus status = parse_server_settings(conn, &settings);
-        if (status != JSON_OK) {
-            char *err = JSON_status_message(status);
-            debug_printf("Error: %s\n", err);
-            http_server_send_reply(conn, "200 OK", "text/plain", err, "close", -1);
-            return true;
-        }
-        
-        debug_printf("/!\\--- write_pico_server_settings() ---/!\\... ");
-        write_pico_server_settings(&settings);
-        debug_printf("Done\n");
-        http_server_send_reply(conn, "200 OK", "text/plain", "OK", "close", -1);
-        watchdog_reboot(0, SRAM_END, 500);
-         
-        return true;
-    } else {
-        const server_settings *settings = get_server_settings();
-        format_server_settings(buffer_server_settings, settings);
-        http_server_send_reply(conn, "200 OK", "text/json", buffer_server_settings, "close", -1);
-        
-        return true;
-    }
-    return false;
 }
