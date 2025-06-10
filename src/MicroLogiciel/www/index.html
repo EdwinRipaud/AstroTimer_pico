@@ -191,6 +191,28 @@
                 console.log("hasFocus");
             }
         }
+        
+        // ----- Server sent event API functions -----
+        var source = new EventSource("/api/stream");
+        
+        source.onopen = function () {
+            console.log("open");
+            console.log(event.data);
+        };
+        
+        source.onerror = function () {
+            console.log("error");
+        };
+        
+        source.addEventListener("Temp", function (event) {
+            console.log("Event: 'Temp': " + event.data);
+            const data = JSON.parse(event.data);
+            document.getElementById("temperature").textContent = data.temperature + " °C";
+        });
+        
+        source.onmessage = function (event) {
+            console.log("No event: " + event.data);
+        };
     </script>
     
     <body onload="init_page()">
@@ -199,6 +221,7 @@
                 <h1>Welcome to AstroTimer Webapp</h1>
                 <a href="javascript:edit_settings()" class="settings_link"><h2>Settings</h2></a>
                 <p>Work in progress... Peak design</p>
+                <p id="temperature">-- °C</p>
             </div>
             
             <div class="setting_table">

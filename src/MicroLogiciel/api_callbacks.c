@@ -11,6 +11,7 @@
 #include "debug_printf.h"
 #include "timer_core.h"
 #include "server_settings.h"
+#include "stream.h"
 #include "timer_settings.h"
 
 static char buffer_server_settings[512]; // Set server setting buffer
@@ -47,7 +48,7 @@ bool do_handle_settings_api_call(http_connection conn, enum http_request_type ty
     } else {
         const server_settings *settings = get_server_settings();
         format_server_settings(buffer_server_settings, settings);
-        http_server_send_reply(conn, "200 OK", "text/json", buffer_server_settings, "close", -1);
+        http_server_send_reply(conn, "200 OK", "application/json", buffer_server_settings, "close", -1);
         
         return true;
     }
@@ -144,9 +145,41 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
             debug_printf("[GET]\n");
             format_timer_settings(buffer_timer_data, &timer_data);
             xSemaphoreGive(s_UpdateTimerSemaphore);
-            http_server_send_reply(conn, "200 OK", "text/json", buffer_timer_data, "close", -1);
+            http_server_send_reply(conn, "200 OK", "application/json", buffer_timer_data, "close", -1);
             return true;
         }
+    }
+    return false;
+}
+
+bool do_handle_stream_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
+{
+    debug_printf("stream ");
+    if (type == HTTP_GET) {
+        debug_printf("[GET]\n");
+        
+        http_write_handle reply = http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive");
+        
+        char buffer[128];
+        TickType_t xLasteWakeTime;
+        
+        for (;;) {
+            int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
+            debug_printf("stream -> \n");
+            debug_printf(buffer);
+            
+            http_server_write_reply(reply, buffer);
+            http_server_end_write_reply(reply, "");
+            
+            xLasteWakeTime = xTaskGetTickCount();
+            vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
+        }
+        return true;
+    } else {
+        debug_printf("[POST]\n");
+        debug_printf("\tError: stream event should be GET request\n");
+        http_server_send_reply(conn, "200 OK", "text/plain", "KO", "close", -1);
+        return true;
     }
     return false;
 }

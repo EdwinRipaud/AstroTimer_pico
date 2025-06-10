@@ -388,9 +388,9 @@ void http_server_send_reply(http_connection conn, const char *code, const char *
     send_all(conn->socket, content, size);
 }
 
-http_write_handle http_server_begin_write_reply(http_connection conn, const char *code, const char *contentType)
+http_write_handle http_server_begin_write_reply(http_connection conn, const char *code, const char *contentType, const char *connexion)
 {
-    conn->buffered_size = snprintf(conn->buffer, conn->server->buffer_size, "HTTP/1.0 %s\r\nContent-Type: %s\r\nConnection: close\r\n\r\n", code, contentType);
+    conn->buffered_size = snprintf(conn->buffer, conn->server->buffer_size, "HTTP/1.0 %s\r\nContent-Type: %s\r\nConnection: %s\r\n\r\n", code, contentType, connexion);
     return (http_write_handle)conn;
 }
 

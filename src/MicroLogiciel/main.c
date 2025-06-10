@@ -1,6 +1,8 @@
 #include <pico/cyw43_arch.h>
 #include <pico/stdlib.h>
 
+#include <hardware/adc.h>
+
 #include <lwip/ip4_addr.h>
 #include <lwip/netif.h>
 
@@ -100,11 +102,11 @@ static void main_task(__unused void *params)
     set_secondary_ip_address(settings->secondary_address);
     http_server_instance server = http_server_create(settings->hostname, settings->domain_name, 4, 4096);
     // TODO: simplify http server zone with one master API zone and callback function
-    static http_zone zone1, zone2, zone3;
+    static http_zone zone1, zone2, zone3, zone4;
     http_server_add_zone(server, &zone1, "", do_retrieve_file, NULL);
     http_server_add_zone(server, &zone2, "/api/timer", do_handle_timer_api_call, NULL);
-    // TODO: handle server and timer settings separatly from a common API settings function
     http_server_add_zone(server, &zone3, "/api/settings", do_handle_settings_api_call, NULL);
+    http_server_add_zone(server, &zone4, "/api/stream", do_handle_stream_api_call, NULL);
     vTaskDelete(NULL);
 }
 
@@ -146,6 +148,10 @@ void key_pressed_func() {
 int main(void)
 {
     stdio_init_all();
+    
+    adc_init();
+    adc_set_temp_sensor_enabled(true);
+    adc_select_input(4);
     
     TaskHandle_t task;
     

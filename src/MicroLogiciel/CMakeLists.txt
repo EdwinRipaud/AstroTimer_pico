@@ -64,6 +64,7 @@ add_executable(${PROGRAM_NAME}
     json_parser.c
     timer_settings.c
     timer_core.c
+    stream.c
     api_callbacks.c
     )
 
@@ -87,6 +88,7 @@ target_link_libraries(${PROGRAM_NAME}
     pico_cyw43_arch_lwip_sys_freertos
     pico_lwip_iperf
     FreeRTOS-Kernel-Heap4
+    hardware_adc
     )
 
 # enable USB output and disable UART output
