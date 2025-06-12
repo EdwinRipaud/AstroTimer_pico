@@ -149,7 +149,46 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
             return true;
         }
     }
-    return false;
+    return false; // TODO: rework all boolean function output status: true = function OK; false = function NOT OK
+}
+
+TaskHandle_t s_StreamTaskHandle = NULL;
+
+void stream_test(http_connection *ptr_conn)
+{
+    http_connection conn = *ptr_conn;
+    char buffer[128];
+    TickType_t xLasteWakeTime;
+    
+    if (!http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive")){
+        debug_printf("-> Unable to send stream request header\n");
+        return;
+    }
+    
+    for (;;) {
+        int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
+        debug_printf("stream -> \n");
+        debug_printf(buffer);
+        
+        if (!http_server_write_reply(conn, buffer)){
+            break; // lost client connection
+        }
+        
+        xLasteWakeTime = xTaskGetTickCount();
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
+    }
+    http_server_end_write_reply(conn, NULL);
+}
+
+static void stream_task(void *arg)
+{
+    debug_printf("Start stream_task...\n");
+    http_connection* ptr_conn = arg;
+    stream_test(ptr_conn);
+    
+    debug_printf("stream_task ended!\n");
+    vTaskDelete(s_StreamTaskHandle);
+    s_StreamTaskHandle = NULL;
 }
 
 bool do_handle_stream_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
@@ -158,27 +197,13 @@ bool do_handle_stream_api_call(http_connection conn, enum http_request_type type
     if (type == HTTP_GET) {
         debug_printf("[GET]\n");
         
-        http_write_handle reply = http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive");
+        stream_task(&conn);
         
-        char buffer[128];
-        TickType_t xLasteWakeTime;
-        
-        for (;;) {
-            int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
-            debug_printf("stream -> \n");
-            debug_printf(buffer);
-            
-            http_server_write_reply(reply, buffer);
-            http_server_end_write_reply(reply, "");
-            
-            xLasteWakeTime = xTaskGetTickCount();
-            vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
-        }
         return true;
     } else {
         debug_printf("[POST]\n");
-        debug_printf("\tError: stream event should be GET request\n");
-        http_server_send_reply(conn, "200 OK", "text/plain", "KO", "close", -1);
+        debug_printf("\tError: 405 Method Not Allowed, only GET supported\n");
+        http_server_send_reply(conn, "405 Method Not Allowed", "text/plain", "Only GET supported", "close", -1);
         return true;
     }
     return false;
