@@ -24,6 +24,7 @@ SemaphoreHandle_t s_StopTimerSemaphore = NULL;
 SemaphoreHandle_t s_UpdateTimerSemaphore = NULL;
 
 TaskHandle_t s_TimerTaskHandle = NULL;
+TaskHandle_t s_StreamTaskHandle = NULL;
 
 bool do_handle_settings_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
 {
@@ -152,41 +153,40 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
     return false; // TODO: rework all boolean function output status: true = function OK; false = function NOT OK
 }
 
-TaskHandle_t s_StreamTaskHandle = NULL;
-
 static void stream_task(void *pvParameters)
 {
     debug_printf("Start stream_task...\n");
     
     sse_context_t *ctx = (sse_context_t *)pvParameters;
     http_connection conn = ctx->conn;
+    int retry_delay = 5000; // TODO: set the delay based on two times the shortest stream delay
     
     if (!http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive")){
         debug_printf("-> Unable to send header\n");
         goto cleanup;
     }
-    char buffer[128];
-    TickType_t xLasteWakeTime;
-    for (;;) {
-        int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
-        debug_printf("stream -> \n");
-        
-        if (!http_server_write_reply(conn, buffer)){
-            debug_printf("-> Client connection lost\n");
-            break; // lost client connection
-        }
-        debug_printf(buffer);
-        
-        xLasteWakeTime = xTaskGetTickCount();
-        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
+    if (!http_server_write_reply(conn, "retry: %d\n\n", retry_delay)){
+        debug_printf("-> Client connection lost\n");
+        goto cleanup;
     }
-    http_server_end_write_reply(conn, NULL);
+    
+    ctx->active_stream_count = 2;
+    ctx->stream_end_semaphore = xSemaphoreCreateCounting(ctx->active_stream_count, 0);
+    
+    xTaskCreate(temperature_stream, "SSE_temperature", configMINIMAL_STACK_SIZE, ctx, tskIDLE_PRIORITY + 1, NULL);
+    xTaskCreate(battery_stream, "SSE_battery", configMINIMAL_STACK_SIZE, ctx, tskIDLE_PRIORITY + 1, NULL);
+    // Wait for each stream to end
+    for (int i = 0; i < ctx->active_stream_count; ++i) {
+        xSemaphoreTake(ctx->stream_end_semaphore, portMAX_DELAY);
+    }
     
 cleanup:
     debug_printf("stream_task ended!\n");
     closesocket(http_connection_get_socket(conn));
     vPortFree(conn);
+    vSemaphoreDelete(ctx->stream_end_semaphore);
     vPortFree(ctx);
+    s_StreamTaskHandle = NULL;
     vTaskDelete(NULL);
 }
 
@@ -202,7 +202,7 @@ bool do_handle_stream_api_call(http_connection conn, enum http_request_type type
     
     debug_printf("[GET]\n");
     
-    sse_context_t *ctx = pvPortMalloc(sizeof(sse_context_t));
+    sse_context_t *ctx = pvPortMalloc(sizeof(sse_context_t)); // TODO: use pvPortMalloc for all task parameters
     if (!ctx) {
         debug_printf("\tError: 500 Internal Server Error, unable to allocate ‘sse_context_t‘\n");
         http_server_send_reply(conn, "500 Internal Server Error", "text/plain", "Out of memory", "close", -1);
@@ -211,13 +211,17 @@ bool do_handle_stream_api_call(http_connection conn, enum http_request_type type
     
     ctx->conn = conn;
     
-    if (xTaskCreate(stream_task, "SSE_Stream", configMINIMAL_STACK_SIZE, ctx, tskIDLE_PRIORITY + 1, &s_StreamTaskHandle) != pdPASS) {
-        vPortFree(ctx);
-        debug_printf("\tError: 500 Internal Server Error, unable to create ‘stream_task‘\n");
-        http_server_send_reply(conn, "500 Internal Server Error", "text/plain", "Task creation failed", "close", -1);
-        return true;
+    if(s_StreamTaskHandle == NULL) {
+        BaseType_t xReturned = xTaskCreate(stream_task, "SSE_Stream", configMINIMAL_STACK_SIZE, ctx, tskIDLE_PRIORITY + 1, &s_StreamTaskHandle);
+        if (xReturned != pdPASS) {
+            vPortFree(ctx);
+            s_StreamTaskHandle = NULL;
+            debug_printf("\tError: 500 Internal Server Error, unable to create ‘stream_task‘\n");
+            http_server_send_reply(conn, "500 Internal Server Error", "text/plain", "Task creation failed", "close", -1);
+            return true;
+        }
     } else {
-        debug_printf("!!! - SSE_Stream running...\n");
+        debug_printf("!!! - SSE_Stream already running...\n");
     }
     return false;
 }

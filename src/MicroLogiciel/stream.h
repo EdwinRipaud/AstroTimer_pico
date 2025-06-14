@@ -10,5 +10,10 @@
 
 float get_onboard_temperature(const char unit);
 
+float get_onboard_battery();
+
+void temperature_stream(void *pvParameters);
+void battery_stream(void *pvParameters);
+
 #endif
 

@@ -1,6 +1,9 @@
 #ifndef HTTPSERVER_H
 #define HTTPSERVER_H
 
+#include <FreeRTOS.h>
+#include <semphr.h>
+
 typedef struct _http_server_instance *http_server_instance;
 typedef struct _http_connection *http_connection, *http_write_handle;
 
@@ -24,6 +27,8 @@ typedef struct http_zone
 typedef struct sse_context_t
 {
     http_connection conn;
+    SemaphoreHandle_t stream_end_semaphore;
+    int active_stream_count;
     // client ID, filter type, topics, start_time_ms
 } sse_context_t;
 
