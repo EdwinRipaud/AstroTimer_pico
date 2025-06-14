@@ -1,6 +1,7 @@
 #include "api_callbacks.h"
 
 #include <pico/cyw43_arch.h>
+#include <lwip/sockets.h>
 
 #include <hardware/watchdog.h>
 
@@ -63,7 +64,6 @@ static void timer_task(void *arg)
     timer_core(param->picture_number, param->exposure_time, param->delay_time);
     
     debug_printf("Timer_task ended!\n");
-    s_TimerTaskHandle = NULL;
     vTaskDelete(NULL);
 }
 
@@ -154,57 +154,70 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
 
 TaskHandle_t s_StreamTaskHandle = NULL;
 
-void stream_test(http_connection *ptr_conn)
+static void stream_task(void *pvParameters)
 {
-    http_connection conn = *ptr_conn;
-    char buffer[128];
-    TickType_t xLasteWakeTime;
+    debug_printf("Start stream_task...\n");
+    
+    sse_context_t *ctx = (sse_context_t *)pvParameters;
+    http_connection conn = ctx->conn;
     
     if (!http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive")){
-        debug_printf("-> Unable to send stream request header\n");
-        return;
+        debug_printf("-> Unable to send header\n");
+        goto cleanup;
     }
-    
+    char buffer[128];
+    TickType_t xLasteWakeTime;
     for (;;) {
         int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
         debug_printf("stream -> \n");
-        debug_printf(buffer);
         
         if (!http_server_write_reply(conn, buffer)){
+            debug_printf("-> Client connection lost\n");
             break; // lost client connection
         }
+        debug_printf(buffer);
         
         xLasteWakeTime = xTaskGetTickCount();
         vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
     }
     http_server_end_write_reply(conn, NULL);
-}
-
-static void stream_task(void *arg)
-{
-    debug_printf("Start stream_task...\n");
-    http_connection* ptr_conn = arg;
-    stream_test(ptr_conn);
     
+cleanup:
     debug_printf("stream_task ended!\n");
-    vTaskDelete(s_StreamTaskHandle);
-    s_StreamTaskHandle = NULL;
+    closesocket(http_connection_get_socket(conn));
+    vPortFree(conn);
+    vPortFree(ctx);
+    vTaskDelete(NULL);
 }
 
 bool do_handle_stream_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
 {
     debug_printf("stream ");
-    if (type == HTTP_GET) {
-        debug_printf("[GET]\n");
-        
-        stream_task(&conn);
-        
-        return true;
-    } else {
+    if (type != HTTP_GET) {
         debug_printf("[POST]\n");
         debug_printf("\tError: 405 Method Not Allowed, only GET supported\n");
         http_server_send_reply(conn, "405 Method Not Allowed", "text/plain", "Only GET supported", "close", -1);
         return true;
+    }
+    
+    debug_printf("[GET]\n");
+    
+    sse_context_t *ctx = pvPortMalloc(sizeof(sse_context_t));
+    if (!ctx) {
+        debug_printf("\tError: 500 Internal Server Error, unable to allocate ‘sse_context_t‘\n");
+        http_server_send_reply(conn, "500 Internal Server Error", "text/plain", "Out of memory", "close", -1);
+        return true;
+    }
+    
+    ctx->conn = conn;
+    
+    if (xTaskCreate(stream_task, "SSE_Stream", configMINIMAL_STACK_SIZE, ctx, tskIDLE_PRIORITY + 1, &s_StreamTaskHandle) != pdPASS) {
+        vPortFree(ctx);
+        debug_printf("\tError: 500 Internal Server Error, unable to create ‘stream_task‘\n");
+        http_server_send_reply(conn, "500 Internal Server Error", "text/plain", "Task creation failed", "close", -1);
+        return true;
+    } else {
+        debug_printf("!!! - SSE_Stream running...\n");
     }
     return false;
 }

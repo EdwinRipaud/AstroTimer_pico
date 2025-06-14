@@ -36,6 +36,10 @@ struct _http_connection
     char buffer[1];
 };
 
+int http_connection_get_socket(http_connection conn) {
+    return conn->socket;
+}
+
 // Receive at least one line into the buffer. Return the total size of received data.
 static int recv_line(int socket, char *buffer, int buffer_size)
 {
@@ -159,6 +163,7 @@ static bool send_all(int socket, const char *buf, int size)
 #endif
         int done = send(socket, buf, size, 0);
         if (done <= 0) {
+            debug_printf("==> Error <==\n");
             return false;
         }
         
@@ -175,7 +180,7 @@ static inline void append(char *buf, int *offset, const char *data, int len)
     *offset += len;
 }
 
-static void parse_and_handle_http_request(http_connection ctx)
+static bool parse_and_handle_http_request(http_connection ctx)
 {
     int len = recv_line(ctx->socket, ctx->buffer, ctx->server->buffer_size);
     char *path = NULL;
@@ -214,14 +219,14 @@ static void parse_and_handle_http_request(http_connection ctx)
     
     if (!header_buf || header_buf_size < 32) {
         debug_printf("HTTP: invalid first line");
-        return;
+        return true;
     }
     
     for (;;) {
         char *line = recv_next_line_buffered(ctx->socket, header_buf, header_buf_size, &header_buf_used, &header_buf_pos, &len, NULL);
         if (!line) {
             debug_printf("HTTP: unexpected end of headers");
-            return;
+            return true;
         }
         
         if (!line[0]) {
@@ -274,7 +279,9 @@ static void parse_and_handle_http_request(http_connection ctx)
                 }
                 
                 if (zone->handler(ctx, reqtype, path + off, zone->context)) {
-                    return;
+                    return true; // handler has ended: socket to be cleaned by the server
+                }else {
+                    return false; // handler has taken over (e.g. SSE)
                 }
             }
         }
@@ -286,10 +293,14 @@ static void parse_and_handle_http_request(http_connection ctx)
 static void do_handle_connection(void *arg)
 {
     http_connection ctx = (http_connection)arg;
-    parse_and_handle_http_request(ctx);
-    closesocket(ctx->socket);
-    vPortFree(ctx);
-    xSemaphoreGive(ctx->server->semaphore);
+    
+    bool need_to_clean_socket = parse_and_handle_http_request(ctx);
+    
+    if (need_to_clean_socket) {
+        closesocket(ctx->socket);
+        vPortFree(ctx);
+        xSemaphoreGive(ctx->server->semaphore);
+    }
     vTaskDelete(NULL);
 }
 

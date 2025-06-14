@@ -21,6 +21,13 @@ typedef struct http_zone
     int prefix_len;
 } http_zone;
 
+typedef struct sse_context_t
+{
+    http_connection conn;
+    // client ID, filter type, topics, start_time_ms
+} sse_context_t;
+
+int http_connection_get_socket(http_connection conn);
 
 http_server_instance http_server_create(const char *main_host, const char *main_domain, int max_thread_count, int buffer_size);
 void http_server_add_zone(http_server_instance server, http_zone *instance, const char *prefix, http_request_handler handler, void *context);
