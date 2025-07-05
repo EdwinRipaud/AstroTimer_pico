@@ -13,7 +13,7 @@ const union
 {
     server_settings settings;
     char padding[FLASH_SECTOR_SIZE-sizeof(server_settings)]; // padding to get FLASH_SECTOR_SIZE size
-} __attribute__((aligned(FLASH_SECTOR_SIZE))) s_Settings = {
+} __attribute__((aligned(FLASH_SECTOR_SIZE))) s_ServerSettings = {
     .settings = {
         .ip_address = 0x010118AC, // 172.24.1.1
         .network_mask = 0x00FFFFFF, // 255.255.255.0
@@ -161,13 +161,13 @@ char *format_server_settings(char *buffer, const server_settings *settings)
 
 const server_settings *get_server_settings()
 {
-    return &s_Settings.settings;
+    return &s_ServerSettings.settings;
 }
 
 void write_pico_server_settings(const server_settings *new_settings)
 {
     portENTER_CRITICAL();
-    flash_range_erase((uint32_t)&s_Settings - XIP_BASE, FLASH_SECTOR_SIZE);
-    flash_range_program((uint32_t)&s_Settings - XIP_BASE, (const uint8_t *)new_settings, sizeof(*new_settings));
+    flash_range_erase((uint32_t)&s_ServerSettings - XIP_BASE, FLASH_SECTOR_SIZE);
+    flash_range_program((uint32_t)&s_ServerSettings - XIP_BASE, (const uint8_t *)new_settings, sizeof(*new_settings));
     portEXIT_CRITICAL();
 }

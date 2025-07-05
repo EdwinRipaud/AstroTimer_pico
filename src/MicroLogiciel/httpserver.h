@@ -30,8 +30,8 @@ void http_server_send_reply(http_connection conn, const char *code, const char *
 char *http_server_read_post_line(http_connection conn);
 
 
-http_write_handle http_server_begin_write_reply(http_connection conn, const char *code, const char *contentType, const char *connexion);
-void http_server_write_reply(http_write_handle handle, const char *format, ...);
-void http_server_end_write_reply(http_write_handle handle, const char *footer);
+bool http_server_begin_write_reply(http_connection conn, const char *code, const char *contentType, const char *connexion);
+bool http_server_write_reply(http_connection conn, const char *format, ...);
+bool http_server_end_write_reply(http_connection conn, const char *footer);
 
 #endif

@@ -122,13 +122,6 @@ void debug_printf(const char *format, ...)
     xSemaphoreGive(s_PrintfSemaphore);
 }
 
-void debug_write(const void *data, int size)
-{
-    xSemaphoreTake(s_PrintfSemaphore, portMAX_DELAY);
-    //write(1, data, size);
-    xSemaphoreGive(s_PrintfSemaphore);
-}
-
 void increase_timer_settings(timer_settings *timer_data)
 {
     debug_printf("\tincrease_timer_settings\n");

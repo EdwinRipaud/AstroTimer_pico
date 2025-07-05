@@ -158,22 +158,26 @@ bool do_handle_stream_api_call(http_connection conn, enum http_request_type type
     if (type == HTTP_GET) {
         debug_printf("[GET]\n");
         
-        http_write_handle reply = http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive");
+        if (!http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive")){
+            debug_printf("-> Unable to send stream request header\n");
+            return false;
+        }
         
         char buffer[128];
-        TickType_t xLasteWakeTime;
+        TickType_t xLasteWakeTime = xTaskGetTickCount();
         
         for (;;) {
             int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
             debug_printf("stream -> \n");
             debug_printf(buffer);
             
-            http_server_write_reply(reply, buffer);
-            http_server_end_write_reply(reply, "");
+            if (!http_server_write_reply(conn, buffer)){
+                break; // lost client connection
+            }
             
-            xLasteWakeTime = xTaskGetTickCount();
             vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
         }
+        http_server_end_write_reply(conn, NULL);
         return true;
     } else {
         debug_printf("[POST]\n");
