@@ -65,6 +65,9 @@ static bool do_retrieve_file(http_connection conn, enum http_request_type type, 
     return false;
 }
 
+// TODO: add a 'main_interface_task'
+
+// TODO: rename 'main_server_task'
 static void main_task(__unused void *params)
 {
     
@@ -78,18 +81,21 @@ static void main_task(__unused void *params)
         printf("missing/corrupt FS image");
         return;
     }
+    
     extern SemaphoreHandle_t s_StartTimerSemaphore;
     extern SemaphoreHandle_t s_StopTimerSemaphore;
     extern SemaphoreHandle_t s_UpdateTimerSemaphore;
+    extern SemaphoreHandle_t s_TimerSettingsSemaphore;
     
     xSemaphoreGive(s_StartTimerSemaphore);
     xSemaphoreGive(s_StopTimerSemaphore);
     xSemaphoreGive(s_UpdateTimerSemaphore);
+    xSemaphoreGive(s_TimerSettingsSemaphore);
     
     const server_settings *settings = get_server_settings();
-
+    
     cyw43_arch_enable_ap_mode(settings->network_name, settings->network_password, settings->network_password[0] ? CYW43_AUTH_WPA2_MIXED_PSK : CYW43_AUTH_OPEN);
-
+    
     struct netif *netif = netif_default;
     ip4_addr_t addr = { .addr = settings->ip_address }, mask = { .addr = settings->network_mask };
     
@@ -122,20 +128,13 @@ void debug_printf(const char *format, ...)
     xSemaphoreGive(s_PrintfSemaphore);
 }
 
-void increase_timer_settings(timer_settings *timer_data)
-{
-    debug_printf("\tincrease_timer_settings\n");
-    timer_data->picture_number = (timer_data->picture_number % 5) + 1;
-    timer_data->exposure_time = timer_data->exposure_time + 500;
-    timer_data->delay_time = timer_data->delay_time + 250;
-}
+SemaphoreHandle_t s_IncreaseTimerSemaphore;
+char key;
 
 void key_pressed_func() {
-    char key = getchar_timeout_us(0); // get any pending key press but don't wait
-    debug_printf("-> %c\n", key);
-    static timer_settings timer_data;
-    timer_data = *get_timer_settings();
-    increase_timer_settings(&timer_data); // MARK: only for test purposes
+    key = getchar_timeout_us(0); // get any pending key press but don't wait
+    debug_printf("-> %X\n", key);
+    xSemaphoreGive(s_IncreaseTimerSemaphore);
 }
 
 int main(void)
@@ -146,23 +145,31 @@ int main(void)
     adc_set_temp_sensor_enabled(true);
     adc_select_input(4);
     
+    // SemaphoreHandle and TaskHandle declaration
     TaskHandle_t task;
     
-    // Semaphore declaration
     extern SemaphoreHandle_t s_StartTimerSemaphore;
     extern SemaphoreHandle_t s_StopTimerSemaphore;
     extern SemaphoreHandle_t s_UpdateTimerSemaphore;
     
+    extern SemaphoreHandle_t s_TimerSettingsSemaphore;
+    
     s_StartTimerSemaphore = xSemaphoreCreateBinary();
     s_StopTimerSemaphore = xSemaphoreCreateBinary();
     s_UpdateTimerSemaphore = xSemaphoreCreateBinary();
+    
+    s_TimerSettingsSemaphore = xSemaphoreCreateBinary();
+    s_IncreaseTimerSemaphore = xSemaphoreCreateBinary();
     
     s_PrintfSemaphore = xSemaphoreCreateMutex();
     
     // Get notified if the user presses a key
     stdio_set_chars_available_callback(key_pressed_func, NULL);
     
+    // Task creation
+    xTaskCreate(increase_timer_settings, "TimerSettingsThread", configMINIMAL_STACK_SIZE, &key, MAIN_TASK_PRIORITY, NULL);
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &task);
+    
     vTaskStartScheduler();
     
     // Never get here

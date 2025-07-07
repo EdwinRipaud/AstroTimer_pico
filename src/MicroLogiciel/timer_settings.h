@@ -18,11 +18,15 @@ typedef struct
     uint32_t delay_time;
 } timer_settings;
 
+timer_settings *get_timer_settings();
+
+timer_settings copy_timer_settings(timer_settings *ptr_settings);
+
 JsonStatus parse_timer(http_connection conn, timer_settings *dest);
 
 char *format_timer_settings(char *buffer, timer_settings *timerData);
 
-const timer_settings *get_timer_settings();
+void increase_timer_settings();
 
 void write_timer_settings(const timer_settings *new_settings);
 
