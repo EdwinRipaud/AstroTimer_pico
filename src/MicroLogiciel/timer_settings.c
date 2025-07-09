@@ -28,7 +28,7 @@ static timer_settings dyn_timer_settings = {
 };
 
 extern SemaphoreHandle_t s_UpdateTimerSemaphore;
-extern SemaphoreHandle_t s_IncreaseTimerSemaphore;
+SemaphoreHandle_t s_IncreaseTimerSemaphore = NULL;
 SemaphoreHandle_t s_TimerSettingsSemaphore = NULL;
 
 timer_settings *get_timer_settings()
@@ -116,7 +116,7 @@ void increase_timer_settings(void *arg)
     uint32_t thresholdDelay = 250;
     debug_printf("start -> increase_timer_settings: \n");
     for (;;) {
-        if ((xSemaphoreTake(s_IncreaseTimerSemaphore, portMAX_DELAY) == pdTRUE) && (xSemaphoreTake(s_UpdateTimerSemaphore, portMAX_DELAY) == pdTRUE)) {
+        if ((xSemaphoreTake(s_IncreaseTimerSemaphore, portMAX_DELAY) == pdTRUE) && (xSemaphoreTake(s_UpdateTimerSemaphore, portMAX_DELAY) == pdTRUE)) { // TODO: move 's_UpdateTimerSemaphore' to 'key_pressed_func()' to leave it available for other task
             
             debug_printf("\t-> increase_timer_settings(");
             timer_settings *ptr_settings = get_timer_settings();

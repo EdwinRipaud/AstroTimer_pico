@@ -62,11 +62,11 @@ bool do_handle_settings_api_call(http_connection conn, enum http_request_type ty
 static void timer_task(void *arg)
 {
     timer_settings *settings = arg;
-    debug_printf("Start Timer_task...\n");
+    debug_printf("Start timer_task...\n");
     
     timer_core(settings->picture_number, settings->exposure_time, settings->delay_time);
     
-    debug_printf("Timer_task ended!\n");
+    debug_printf("timer_task ended!\n");
     s_TimerTaskHandle = NULL;
     vTaskDelete(NULL);
 }
@@ -171,44 +171,27 @@ bool do_handle_timer_api_call(http_connection conn, enum http_request_type type,
     return false;
 }
 
-static void stream_task(void *arg)
-{
-    timer_settings *param = arg;
-    debug_printf("Start Timer_task...\n");
-    
-    timer_core(param->picture_number, param->exposure_time, param->delay_time);
-    
-    debug_printf("Timer_task ended!\n");
-    s_TimerTaskHandle = NULL;
-    vTaskDelete(NULL);
-}
-
 bool do_handle_stream_api_call(http_connection conn, enum http_request_type type, char *path, void *context)
 {
     debug_printf("stream ");
     if (type == HTTP_GET) {
         debug_printf("[GET]\n");
         
-        if (!http_server_begin_write_reply(conn, "200 OK", "text/event-stream", "keep-alive")){
+        sse_context_t ctx = {
+            .conn = &conn,
+            .stream_count_semaphore = xSemaphoreCreateCounting(2,0),
+        };
+        
+        if (!http_server_begin_write_reply(*ctx.conn, "200 OK", "text/event-stream", "keep-alive")){
             debug_printf("-> Unable to send stream request header\n");
             return false;
         }
+        xTaskCreate(temperature_stream, "SSE_temperature", configMINIMAL_STACK_SIZE, &ctx, tskIDLE_PRIORITY, NULL);
+        xTaskCreate(battery_stream, "SSE_battery", configMINIMAL_STACK_SIZE, &ctx, tskIDLE_PRIORITY, NULL);
         
-        char buffer[128];
-        TickType_t xLasteWakeTime = xTaskGetTickCount();
-        
-        for (;;) {
-            int n = sprintf(buffer, "event: Temp\ndata: {\"temperature\": %.1f}\nretry: %d\n\n", get_onboard_temperature('C'), 2*3000);
-            debug_printf("stream -> \n");
-            debug_printf(buffer);
-            
-            if (!http_server_write_reply(conn, buffer)){
-                break; // lost client connection
-            }
-            
-            vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(3000));
+        if (xSemaphoreTake(ctx.stream_count_semaphore, portMAX_DELAY) == pdTRUE) {
+            debug_printf("-> All stream ended\n");
         }
-        http_server_end_write_reply(conn, NULL);
         return true;
     } else {
         debug_printf("\tError: 405 Method Not Allowed, only GET supported\n");

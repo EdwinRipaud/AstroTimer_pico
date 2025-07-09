@@ -391,22 +391,20 @@ void http_server_send_reply(http_connection conn, const char *code, const char *
 bool http_server_begin_write_reply(http_connection conn, const char *code, const char *contentType, const char *connexion)
 {
     conn->buffered_size = snprintf(conn->buffer, conn->server->buffer_size, "HTTP/1.0 %s\r\nContent-Type: %s\r\nConnection: %s\r\n\r\n", code, contentType, connexion);
-    return send_all(conn->socket, conn->buffer, conn->buffered_size);
+    bool status = send_all(conn->socket, conn->buffer, conn->buffered_size);
+    if (!status) {
+        debug_printf("==> not send <== -> http_server_begin_write_reply\n");
+    }
+    return status;
 }
 
 bool http_server_write_reply(http_connection conn, const char *format, ...)
 {
-    bool status;
     va_list args;
     va_start(args, format);
     int written = vsnprintf(conn->buffer + conn->buffered_size, conn->server->buffer_size - conn->buffered_size, format, args);
     va_end(args);
-    /*if ((conn->buffered_size + written) < (conn->server->buffer_size - 16)) {
-        conn->buffered_size += written;
-        debug_printf("==> not send <== -> http_server_write_reply\n");
-        return;
-    }*/
-    status = send_all(conn->socket, conn->buffer, conn->buffered_size);
+    bool status = send_all(conn->socket, conn->buffer, conn->buffered_size);
     if (!status) {
         debug_printf("==> not send <== -> http_server_write_reply\n");
     }

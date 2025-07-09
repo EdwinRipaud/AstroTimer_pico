@@ -7,7 +7,8 @@
 
 // Choose 'C' for Celsius or 'F' for Fahrenheit. TODO: add to general settings
 #define TEMPERATURE_UNITS 'C'
-#define TEMPERATURE_DELAY 3000
+#define TEMPERATURE_DELAY 1500
+#define BATTERY_DELAY 3000
 
 // References for this implementation: raspberry-pi-pico-c-sdk.pdf, Section '4.1.1. hardware_adc'
 float get_onboard_temperature(const char unit)
@@ -25,4 +26,62 @@ float get_onboard_temperature(const char unit)
     }
     
     return -1.0f;
+}
+
+void temperature_stream(void *pvParameters)
+{
+    sse_context_t *ctx = (sse_context_t *)pvParameters;
+    http_connection conn = *ctx->conn;
+    
+    char buffer[128];
+    TickType_t xLasteWakeTime = xTaskGetTickCount();
+    debug_printf("\t- 1: ctx->stream_count_semaphore = %d\n", uxSemaphoreGetCount(ctx->stream_count_semaphore));
+    
+    for (;;) {
+        float temp = get_onboard_temperature('C');
+        int n = sprintf(buffer, "event: Temperature\ndata: {\"temperature\": %.1f}\n\n", temp);
+        debug_printf("stream : Temperature -> \n");
+        
+        if (!http_server_write_reply(conn, buffer)){
+            debug_printf("-> Client connection lost\n");
+            break; // lost client connection
+        }
+        debug_printf(buffer);
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(TEMPERATURE_DELAY));
+    }
+    xSemaphoreGive(ctx->stream_count_semaphore);
+    debug_printf("\t- 2: ctx->stream_count_semaphore = %d\n", uxSemaphoreGetCount(ctx->stream_count_semaphore));
+    vTaskDelete(NULL);
+}
+
+// TODO: set a power management struct to hold percentage, voltage, amperage, cycle count
+// TODO: store those informations into the flash like s_ServerSettings
+float get_onboard_battery()
+{
+    // TODO: make a proper battery monitoring script
+    int batt = rand() % 1001;
+    return (float)batt/10;
+}
+
+void battery_stream(void *pvParameters)
+{
+    sse_context_t *ctx = (sse_context_t *)pvParameters;
+    http_connection conn = *ctx->conn;
+    
+    char buffer[128];
+    TickType_t xLasteWakeTime = xTaskGetTickCount();
+    for (;;) {
+        float batt = get_onboard_battery();
+        int n = sprintf(buffer, "event: Battery\ndata: {\"battery\": %.1f}\n\n", batt);
+        debug_printf("stream : Battery -> \n");
+        
+        if (!http_server_write_reply(conn, buffer)){
+            debug_printf("-> Client connection lost\n");
+            break; // lost client connection
+        }
+        debug_printf(buffer);
+        vTaskDelayUntil(&xLasteWakeTime, pdMS_TO_TICKS(BATTERY_DELAY));
+    }
+    xSemaphoreGive(ctx->stream_count_semaphore);
+    vTaskDelete(NULL);
 }

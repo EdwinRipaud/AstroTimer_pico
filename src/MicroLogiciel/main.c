@@ -23,6 +23,12 @@
 
 #define MAIN_TASK_PRIORITY (tskIDLE_PRIORITY + 2UL)
 
+extern SemaphoreHandle_t s_StartTimerSemaphore;
+extern SemaphoreHandle_t s_StopTimerSemaphore;
+extern SemaphoreHandle_t s_UpdateTimerSemaphore;
+extern SemaphoreHandle_t s_IncreaseTimerSemaphore;
+extern SemaphoreHandle_t s_TimerSettingsSemaphore;
+
 struct SimpleFSContext
 {
     GlobalFSHeader *header;
@@ -82,11 +88,6 @@ static void main_task(__unused void *params)
         return;
     }
     
-    extern SemaphoreHandle_t s_StartTimerSemaphore;
-    extern SemaphoreHandle_t s_StopTimerSemaphore;
-    extern SemaphoreHandle_t s_UpdateTimerSemaphore;
-    extern SemaphoreHandle_t s_TimerSettingsSemaphore;
-    
     xSemaphoreGive(s_StartTimerSemaphore);
     xSemaphoreGive(s_StopTimerSemaphore);
     xSemaphoreGive(s_UpdateTimerSemaphore);
@@ -128,7 +129,6 @@ void debug_printf(const char *format, ...)
     xSemaphoreGive(s_PrintfSemaphore);
 }
 
-SemaphoreHandle_t s_IncreaseTimerSemaphore;
 char key;
 
 void key_pressed_func() {
@@ -147,12 +147,6 @@ int main(void)
     
     // SemaphoreHandle and TaskHandle declaration
     TaskHandle_t task;
-    
-    extern SemaphoreHandle_t s_StartTimerSemaphore;
-    extern SemaphoreHandle_t s_StopTimerSemaphore;
-    extern SemaphoreHandle_t s_UpdateTimerSemaphore;
-    
-    extern SemaphoreHandle_t s_TimerSettingsSemaphore;
     
     s_StartTimerSemaphore = xSemaphoreCreateBinary();
     s_StopTimerSemaphore = xSemaphoreCreateBinary();
