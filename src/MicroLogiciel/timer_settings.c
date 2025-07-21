@@ -107,21 +107,26 @@ char *format_timer_settings(char *buffer, timer_settings *settings)
     return NULL;
 }
 
-void increase_timer_settings(void *arg)
+// TODO: move this function to 'stream.c'
+void interrupt_timer_settings(void *arg)
 {
-    char *key = arg;
+    timer_interrupt_t *interrupt = arg;
+    http_connection conn = *interrupt->conn;
+    char buffer[128];
+    char buffer_param[64];
+    
     // set threshold as general parameters
     uint32_t thresholdPicture = 1;
     uint32_t thresholdExposure = 500;
     uint32_t thresholdDelay = 250;
-    debug_printf("start -> increase_timer_settings: \n");
+    debug_printf("start -> interrupt_timer_settings: \n");
     for (;;) {
         if ((xSemaphoreTake(s_IncreaseTimerSemaphore, portMAX_DELAY) == pdTRUE) && (xSemaphoreTake(s_UpdateTimerSemaphore, portMAX_DELAY) == pdTRUE)) { // TODO: move 's_UpdateTimerSemaphore' to 'key_pressed_func()' to leave it available for other task
             
-            debug_printf("\t-> increase_timer_settings(");
+            debug_printf("\t-> interrupt_timer_settings(");
             timer_settings *ptr_settings = get_timer_settings();
             
-            if (*key > 0x60) {
+            if (*interrupt->signal > 0x60) {
                 debug_printf("+ increase)\n");
                 ptr_settings->picture_number = (uint32_t)((ptr_settings->picture_number % 10) + 1);
                 ptr_settings->exposure_time = (uint32_t)(ptr_settings->exposure_time + 500);
@@ -153,6 +158,16 @@ void increase_timer_settings(void *arg)
             timer_settings new_settings = copy_timer_settings(ptr_settings);
             //write_timer_settings(&new_settings);
             debug_printf("Done\n");
+            
+            format_timer_settings(buffer_param, ptr_settings);
+            int n = sprintf(buffer, "event: TimerUpdate\ndata: %s\n\n", buffer_param);
+            debug_printf("stream : TimerUpdate -> \n");
+            // !!!: seem not to be recieved by client...
+            if (!http_server_write_reply(conn, buffer)){
+                debug_printf("-> Client connection lost\n");
+                break; // lost client connection
+            }
+            
             xSemaphoreGive(s_TimerSettingsSemaphore);
             xSemaphoreGive(s_UpdateTimerSemaphore);
         }

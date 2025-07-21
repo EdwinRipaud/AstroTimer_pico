@@ -181,11 +181,18 @@ bool do_handle_stream_api_call(http_connection conn, enum http_request_type type
             .conn = &conn,
             .stream_count_semaphore = xSemaphoreCreateCounting(2,0),
         };
+        extern char interrupt_key;
+        timer_interrupt_t s_TimerInterrupt = {
+            .conn = &conn,
+            .signal = &interrupt_key,
+            
+        };
         
         if (!http_server_begin_write_reply(*ctx.conn, "200 OK", "text/event-stream", "keep-alive")){
             debug_printf("-> Unable to send stream request header\n");
             return false;
         }
+        xTaskCreate(interrupt_timer_settings, "Timer Settings Thread", configMINIMAL_STACK_SIZE, &s_TimerInterrupt, tskIDLE_PRIORITY + 1, NULL);
         xTaskCreate(temperature_stream, "SSE_temperature", configMINIMAL_STACK_SIZE, &ctx, tskIDLE_PRIORITY, NULL);
         xTaskCreate(battery_stream, "SSE_battery", configMINIMAL_STACK_SIZE, &ctx, tskIDLE_PRIORITY, NULL);
         

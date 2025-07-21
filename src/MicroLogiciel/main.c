@@ -107,7 +107,7 @@ static void main_task(__unused void *params)
     dhcp_server_init(&dhcp_server, &netif->ip_addr, &netif->netmask, settings->domain_name);
     dns_server_init(netif->ip_addr.addr, settings->secondary_address, settings->hostname, settings->domain_name, settings->dns_ignores_network_suffix);
     set_secondary_ip_address(settings->secondary_address);
-    http_server_instance server = http_server_create(settings->hostname, settings->domain_name, 4, 4096);
+    http_server_instance server = http_server_create(settings->hostname, settings->domain_name, 4, 4096); // TODO: 4 is the maximal number au simultaneous connexion 
     // TODO: simplify http server zone with one master API zone and callback function
     static http_zone zone1, zone2, zone3, zone4;
     http_server_add_zone(server, &zone1, "", do_retrieve_file, NULL);
@@ -129,11 +129,11 @@ void debug_printf(const char *format, ...)
     xSemaphoreGive(s_PrintfSemaphore);
 }
 
-char key;
+char interrupt_key;
 
 void key_pressed_func() {
-    key = getchar_timeout_us(0); // get any pending key press but don't wait
-    debug_printf("-> %X\n", key);
+    interrupt_key = getchar_timeout_us(0); // get any pending key press but don't wait
+    debug_printf("-> %X\n", interrupt_key);
     xSemaphoreGive(s_IncreaseTimerSemaphore);
 }
 
@@ -161,7 +161,6 @@ int main(void)
     stdio_set_chars_available_callback(key_pressed_func, NULL);
     
     // Task creation
-    xTaskCreate(increase_timer_settings, "TimerSettingsThread", configMINIMAL_STACK_SIZE, &key, MAIN_TASK_PRIORITY, NULL);
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, &task);
     
     vTaskStartScheduler();

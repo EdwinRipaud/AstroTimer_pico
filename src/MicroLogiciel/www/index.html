@@ -19,8 +19,6 @@
             document.getElementById("error_popup_text").innerHTML = text;
         }
         function init_page() {
-            // Update Timer values every 30000ms
-            setInterval(timer_api_update, 30000); // TODO: make a dynamic update interval time based on page activity
             for (const el of document.getElementsByClassName("modal_popup")) {
                 el.style.display = "none";
             }
@@ -169,8 +167,8 @@
                 }
             };
         }
-        const inputFocus = ["picture", "exposure", "delay"];
         function timer_api_update() {
+            const inputFocus = ["picture", "exposure", "delay"];
             var hasFocus = inputFocus.includes(document.activeElement.id);
             if (!hasFocus) {
                 let xhr = new XMLHttpRequest();
@@ -214,6 +212,12 @@
             console.log("Event: 'Battery': " + event.data);
             const data = JSON.parse(event.data);
             document.getElementById("battery").textContent = data.battery + " %";
+        });
+        
+        source.addEventListener("TimerUpdate", function (event) {
+            console.log("Event: 'TimerUpdate': " + event.data);
+            // TODO: use a modify version of 'timer_api_update()' to update client timer parameters
+            timer_api_update();
         });
         
         source.onmessage = function (event) {
